@@ -134,14 +134,15 @@ const PngExport = (() => {
   }
 
   /**
-   * 触发下载高清 PDF（高分辨率位图嵌入）
-   * 使用 Canvas 渲染 SVG 后嵌入 PDF，完美支持中文和 foreignObject
+   * 触发下载高清 PDF
+   * 使用 JPEG 压缩嵌入，兼顾清晰度和文件体积（~1MB vs 之前的 57MB）
    */
   async function downloadPdf(svgElement, filename, options = {}) {
     const {
-      scale = 8,     // 8x 分辨率，超高清导出（与 PNG 一致）
+      scale = 6,          // 6x 足够清晰（≈216dpi），体积可控
       padding = 40,
       backgroundColor = '#ffffff',
+      jpegQuality = 0.92, // JPEG 压缩质量，0.92 接近无损
     } = options;
 
     if (typeof window.jspdf === 'undefined') {
@@ -168,7 +169,7 @@ const PngExport = (() => {
     bgRect.setAttribute('fill', backgroundColor);
     clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
 
-    // SVG → Canvas → PNG data URL
+    // SVG → Canvas → JPEG data URL（关键：用 JPEG 替代 PNG，体积降低 90%+）
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(clonedSvg);
     const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
@@ -183,7 +184,7 @@ const PngExport = (() => {
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/png'));
+        resolve(canvas.toDataURL('image/jpeg', jpegQuality));
       };
       img.onerror = () => reject(new Error('Failed to render SVG for PDF'));
       img.src = svgDataUrl;
@@ -202,7 +203,7 @@ const PngExport = (() => {
       format: [pdfWidth, pdfHeight],
     });
 
-    doc.addImage(imgDataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    doc.addImage(imgDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
     doc.save(`${filename}.pdf`);
   }
 
