@@ -1,37 +1,12 @@
 // Vercel Serverless Function - 对话式局部修改思维导图
-// AI 返回 JSON 操作指令，前端根据指令对 Markdown 做局部修改，节省 token 且不丢失内容
+import {
+  getOpenAIConfig,
+  resolveModel,
+  callChatCompletions,
+  errorResponse,
+} from './_shared.js';
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
-
-  if (!OPENAI_API_KEY) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
-  }
-
-  try {
-    const { currentMarkdown, message, model, history } = req.body;
-
-    if (!currentMarkdown || typeof currentMarkdown !== 'string' || !currentMarkdown.trim()) {
-      return res.status(400).json({ error: '请先生成思维导图' });
-    }
-
-    if (!message || typeof message !== 'string' || !message.trim()) {
-      return res.status(400).json({ error: '请输入你的问题或指令' });
-    }
-
-    if (message.length > 500) {
-      return res.status(400).json({ error: '消息过长（最多 500 字）' });
-    }
-
-    const selectedModel = (model && typeof model === 'string' && model.trim()) ? model.trim() : OPENAI_MODEL;
-
-    const systemPrompt = `你是一位专业的思维导图编辑助手。用户已有一份 Markdown 格式的思维导图，现在想对其中的某个部分进行修改。
+const CHAT_SYSTEM_PROMPT = `你是一位专业的思维导图编辑助手。用户已有一份 Markdown 格式的思维导图，现在想对其中的某个部分进行修改。
 
 ## 你的任务
 
@@ -87,83 +62,74 @@ export default async function handler(req, res) {
 [{"op":"insert","target":"机器学习","content":"## 迁移学习\\n### 领域自适应\\n### 微调策略"}]
 \`\`\``;
 
-    // 构建消息列表
-    const messages = [
-      { role: 'system', content: systemPrompt },
-    ];
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return errorResponse(res, 405, 'Method not allowed');
+  }
 
-    // 加入对话历史（如有）
+  const { apiKey, baseUrl, defaultModel } = getOpenAIConfig();
+  if (!apiKey) {
+    return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
+  }
+
+  try {
+    const { currentMarkdown, message, model, history } = req.body;
+
+    if (!currentMarkdown || typeof currentMarkdown !== 'string' || !currentMarkdown.trim()) {
+      return errorResponse(res, 400, '请先生成思维导图');
+    }
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return errorResponse(res, 400, '请输入你的问题或指令');
+    }
+    if (message.length > 500) {
+      return errorResponse(res, 400, '消息过长（最多 500 字）');
+    }
+
+    const selectedModel = resolveModel(model, defaultModel);
+
+    const messages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
+
     if (Array.isArray(history) && history.length > 0) {
-      const recentHistory = history.slice(-6);
-      for (const h of recentHistory) {
-        if (h.role === 'user' && h.content) {
-          messages.push({ role: 'user', content: h.content });
-        } else if (h.role === 'assistant' && h.content) {
-          messages.push({ role: 'assistant', content: h.content });
+      for (const h of history.slice(-6)) {
+        if ((h.role === 'user' || h.role === 'assistant') && h.content) {
+          messages.push({ role: h.role, content: h.content });
         }
       }
     }
 
-    // 当前用户消息
     messages.push({
       role: 'user',
-      content: `当前思维导图 Markdown：
-
-${currentMarkdown.trim()}
-
----
-
-修改要求：${message.trim()}
-
-请输出 JSON 操作指令数组。`,
+      content: `当前思维导图 Markdown：\n\n${currentMarkdown.trim()}\n\n---\n\n修改要求：${message.trim()}\n\n请输出 JSON 操作指令数组。`,
     });
 
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        temperature: 0.3,
-        max_tokens: 2048,
-        messages: messages,
-      }),
+    let raw = await callChatCompletions({
+      baseUrl,
+      apiKey,
+      model: selectedModel,
+      messages,
+      temperature: 0.3,
+      maxTokens: 2048,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('OpenAI API error:', response.status, errText);
-      return res.status(502).json({ error: 'AI 服务异常，请稍后重试' });
+    if (!raw) {
+      return errorResponse(res, 502, 'AI 返回了空结果，请重试');
     }
-
-    const data = await response.json();
-    let raw = data?.choices?.[0]?.message?.content?.trim() || '';
 
     // 清理可能的代码块包裹
     if (raw.startsWith('```')) {
       raw = raw.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
     }
 
-    if (!raw) {
-      return res.status(502).json({ error: 'AI 返回了空结果，请重试' });
-    }
-
-    // 解析 JSON
     let operations;
     try {
       operations = JSON.parse(raw);
-      if (!Array.isArray(operations)) {
-        operations = [operations];
-      }
-    } catch (parseErr) {
+      if (!Array.isArray(operations)) operations = [operations];
+    } catch {
       console.error('Failed to parse AI response as JSON:', raw);
-      // 解析失败时，回退到全量替换模式
       return res.status(200).json({
         success: true,
         mode: 'fallback',
-        raw: raw,
+        raw,
         description: 'AI 返回格式异常，请重试',
       });
     }
@@ -171,11 +137,13 @@ ${currentMarkdown.trim()}
     return res.status(200).json({
       success: true,
       mode: 'patch',
-      operations: operations,
+      operations,
     });
-
   } catch (error) {
+    if (error.message === 'AI_SERVICE_ERROR') {
+      return errorResponse(res, 502, 'AI 服务异常，请稍后重试');
+    }
     console.error('Server error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return errorResponse(res, 500, 'Internal server error');
   }
 }

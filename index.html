@@ -23,7 +23,7 @@
 <body>
   <div class="app">
     <!-- 历史记录按钮（固定在右上角） -->
-    <button class="history-toggle-btn" onclick="toggleHistoryPanel()" title="历史记录">
+    <button class="history-toggle-btn" onclick="toggleHistoryPanel()" title="历史记录" aria-label="打开历史记录面板">
       📜 历史记录
     </button>
 
@@ -31,10 +31,10 @@
     <div class="history-overlay" id="historyOverlay" onclick="toggleHistoryPanel()"></div>
 
     <!-- 历史记录侧边面板 -->
-    <aside class="history-panel" id="historyPanel">
+    <aside class="history-panel" id="historyPanel" aria-label="历史记录">
       <div class="history-panel-header">
         <h2>📜 历史记录</h2>
-        <button class="history-close-btn" onclick="toggleHistoryPanel()">✕</button>
+        <button class="history-close-btn" onclick="toggleHistoryPanel()" aria-label="关闭历史面板">✕</button>
       </div>
       <div class="history-panel-actions">
         <button class="history-clear-btn" id="historyClearBtn" onclick="clearAllHistory()" style="display:none;">
@@ -164,10 +164,10 @@
     </section>
 
     <!-- 对话式修改区域 -->
-    <section id="chatSection" class="chat-section" style="display:none;">
+    <section id="chatSection" class="chat-section" style="display:none;" aria-label="对话修改">
       <div class="chat-header">
         <div class="chat-header-left">
-          <span class="chat-header-icon">💬</span>
+          <span class="chat-header-icon" aria-hidden="true">💬</span>
           <h3>对话修改</h3>
           <span class="chat-header-hint">针对节点提问或要求展开，AI 会在原图基础上修改</span>
         </div>
@@ -206,8 +206,24 @@
     </footer>
   </div>
 
+  <!-- 导出模块 -->
   <script src="xmind-export.js"></script>
   <script src="png-export.js"></script>
-  <script src="app.js"></script>
+
+  <!-- 应用模块（按依赖顺序加载） -->
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/markmap.js"></script>
+  <script src="js/markdown-engine.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/prompt.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/download.js"></script>
+  <script src="js/generate.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>

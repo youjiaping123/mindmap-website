@@ -1,22 +1,47 @@
 /* ============================
    AI 思维导图生成器 - 样式表
+   ============================
+   目录:
+   1. CSS 变量 & 全局重置
+   2. 布局容器
+   3. 顶部导航
+   4. 输入区域 (模型选择、主题输入、预设、提示词)
+   5. 工具栏 & 导出按钮
+   6. 内容区域 (思维导图预览 & Markdown)
+   7. 历史记录面板
+   8. 对话式修改区域
+   9. 底部
+   10. 响应式适配
+   11. 第三方组件覆盖 (Markmap Toolbar)
    ============================ */
 
+/* ------------------------------------
+   1. CSS 变量 & 全局重置
+   ------------------------------------ */
 :root {
   --primary: #6366f1;
   --primary-hover: #4f46e5;
   --primary-light: #e0e7ff;
+  --accent: #a855f7;
   --bg: #f8fafc;
   --card-bg: #ffffff;
   --text: #1e293b;
   --text-secondary: #64748b;
+  --text-muted: #94a3b8;
   --border: #e2e8f0;
   --error: #ef4444;
+  --error-light: #fef2f2;
+  --error-border: #fecaca;
   --success: #22c55e;
+  --success-dark: #16a34a;
+  --warning: #f97316;
+  --warning-dark: #ea580c;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --radius: 12px;
   --radius-sm: 8px;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  --transition: 0.2s ease;
 }
 
 * {
@@ -32,6 +57,9 @@ body {
   min-height: 100vh;
 }
 
+/* ------------------------------------
+   2. 布局容器
+   ------------------------------------ */
 .app {
   max-width: 1200px;
   margin: 0 auto;
@@ -41,7 +69,9 @@ body {
   flex-direction: column;
 }
 
-/* ===== Header ===== */
+/* ------------------------------------
+   3. 顶部导航
+   ------------------------------------ */
 .header {
   text-align: center;
   padding: 32px 0 24px;
@@ -63,7 +93,7 @@ body {
 .header h1 {
   font-size: 28px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), #a855f7);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -75,7 +105,9 @@ body {
   margin-top: 4px;
 }
 
-/* ===== Input Section ===== */
+/* ------------------------------------
+   4. 输入区域
+   ------------------------------------ */
 .input-section {
   margin-bottom: 20px;
 }
@@ -140,7 +172,7 @@ body {
 }
 
 #topicInput::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 #generateBtn {
@@ -149,7 +181,7 @@ body {
   justify-content: center;
   gap: 6px;
   padding: 12px 28px;
-  background: linear-gradient(135deg, var(--primary), #a855f7);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -182,8 +214,8 @@ body {
 .error-msg {
   margin-top: 12px;
   padding: 10px 16px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--error-light);
+  border: 1px solid var(--error-border);
   border-radius: var(--radius-sm);
   color: var(--error);
   font-size: 14px;
@@ -235,7 +267,7 @@ body {
 
 .preset-btn.active {
   color: white;
-  background: linear-gradient(135deg, var(--primary), #a855f7);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   border-color: transparent;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
@@ -304,8 +336,8 @@ body {
   resize: vertical;
   min-height: 120px;
   max-height: 400px;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-  transition: border-color 0.2s;
+  font-family: var(--font-mono);
+  transition: border-color var(--transition);
 }
 
 .prompt-textarea:focus {
@@ -314,7 +346,7 @@ body {
 }
 
 .prompt-textarea::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif;
 }
 
@@ -352,7 +384,9 @@ body {
   color: var(--text-secondary);
 }
 
-/* ===== Toolbar ===== */
+/* ------------------------------------
+   5. 工具栏 & 导出按钮
+   ------------------------------------ */
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -408,7 +442,7 @@ body {
 }
 
 .xmind-btn {
-  background: linear-gradient(135deg, #f97316, #ea580c);
+  background: linear-gradient(135deg, var(--warning), var(--warning-dark));
 }
 
 .xmind-btn:hover {
@@ -416,14 +450,16 @@ body {
 }
 
 .png-btn {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(135deg, var(--success), var(--success-dark));
 }
 
 .png-btn:hover {
   box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
 }
 
-/* ===== Content Area ===== */
+/* ------------------------------------
+   6. 内容区域
+   ------------------------------------ */
 .content-area {
   flex: 1;
   display: flex;
@@ -463,7 +499,7 @@ body {
 }
 
 .markdown-content {
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.7;
   color: var(--text);
@@ -471,7 +507,9 @@ body {
   word-break: break-word;
 }
 
-/* ===== History Panel ===== */
+/* ------------------------------------
+   7. 历史记录面板
+   ------------------------------------ */
 .history-toggle-btn {
   position: fixed;
   top: 16px;
@@ -573,15 +611,15 @@ body {
   padding: 6px 14px;
   font-size: 12px;
   color: var(--error);
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--error-light);
+  border: 1px solid var(--error-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition);
 }
 
 .history-clear-btn:hover {
-  background: #fee2e2;
+  background: var(--error-light);
   border-color: var(--error);
 }
 
@@ -689,11 +727,13 @@ body {
 }
 
 .history-item-delete:hover {
-  background: #fef2f2;
+  background: var(--error-light);
   color: var(--error);
 }
 
-/* ===== Chat Section ===== */
+/* ------------------------------------
+   8. 对话式修改区域
+   ------------------------------------ */
 .chat-section {
   display: flex;
   flex-direction: column;
@@ -750,7 +790,7 @@ body {
 .chat-clear-btn:hover {
   color: var(--error);
   border-color: var(--error);
-  background: #fef2f2;
+  background: var(--error-light);
 }
 
 /* Quick bar */
@@ -854,7 +894,7 @@ body {
 }
 
 .chat-msg-user .chat-msg-bubble {
-  background: linear-gradient(135deg, var(--primary), #a855f7);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: white;
   border-bottom-right-radius: 4px;
 }
@@ -909,7 +949,7 @@ body {
 }
 
 .chat-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .chat-send-btn {
@@ -917,7 +957,7 @@ body {
   font-size: 14px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, var(--primary), #a855f7);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -936,7 +976,9 @@ body {
   cursor: not-allowed;
 }
 
-/* ===== Footer ===== */
+/* ------------------------------------
+   9. 底部
+   ------------------------------------ */
 .footer {
   text-align: center;
   padding: 24px 0 12px;
@@ -953,7 +995,9 @@ body {
   text-decoration: underline;
 }
 
-/* ===== Responsive ===== */
+/* ------------------------------------
+   10. 响应式适配
+   ------------------------------------ */
 @media (max-width: 640px) {
   .app {
     padding: 16px 12px;
@@ -1061,7 +1105,9 @@ body {
   }
 }
 
-/* ===== Markmap 工具栏样式覆盖 ===== */
+/* ------------------------------------
+   11. 第三方组件覆盖 (Markmap Toolbar)
+   ------------------------------------ */
 .mm-toolbar {
   position: absolute;
   bottom: 12px;
