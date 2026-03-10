@@ -80,6 +80,40 @@ body {
   margin-bottom: 20px;
 }
 
+/* Model Select */
+.model-select-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.model-select-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.model-select-group select {
+  flex: 1;
+  max-width: 360px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: auto;
+}
+
+.model-select-group select:focus {
+  border-color: var(--primary);
+}
+
 .input-group {
   display: flex;
   gap: 12px;
@@ -153,6 +187,113 @@ body {
   border-radius: var(--radius-sm);
   color: var(--error);
   font-size: 14px;
+}
+
+/* ===== Custom Prompt Section ===== */
+.prompt-section {
+  margin-top: 12px;
+}
+
+.prompt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+  user-select: none;
+}
+
+.prompt-toggle:hover {
+  color: var(--primary);
+}
+
+.prompt-toggle-icon {
+  font-size: 10px;
+  transition: transform 0.2s;
+  width: 12px;
+  text-align: center;
+}
+
+.prompt-toggle-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.prompt-body {
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.prompt-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+  min-height: 120px;
+  max-height: 400px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  transition: border-color 0.2s;
+}
+
+.prompt-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.prompt-textarea::placeholder {
+  color: #94a3b8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.prompt-actions-left {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-action-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.prompt-action-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.prompt-char-count {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 /* ===== Toolbar ===== */
@@ -317,6 +458,14 @@ body {
   #generateBtn {
     width: 100%;
     padding: 14px;
+  }
+
+  .model-select-group select {
+    max-width: 100%;
+  }
+
+  .prompt-textarea {
+    font-size: 13px;
   }
 
   .toolbar {

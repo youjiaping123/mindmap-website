@@ -11,6 +11,161 @@ let currentTopic = '';      // 当前的主题
 let markmapInstance = null; // markmap 实例
 
 // ============================
+// 模型列表加载
+// ============================
+
+/**
+ * 页面加载时获取可用模型列表
+ */
+async function loadModels() {
+  const select = document.getElementById('modelSelect');
+  try {
+    const response = await fetch('/api/models');
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || '获取模型列表失败');
+    }
+
+    // 清空下拉框
+    select.innerHTML = '';
+
+    const models = data.models || [];
+    const defaultModel = data.default || '';
+
+    if (models.length === 0) {
+      select.innerHTML = '<option value="">无可用模型</option>';
+      return;
+    }
+
+    models.forEach((modelId) => {
+      const option = document.createElement('option');
+      option.value = modelId;
+      option.textContent = modelId;
+      if (modelId === defaultModel) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    });
+
+    // 如果没有匹配的默认模型，选中第一个
+    if (defaultModel && !models.includes(defaultModel)) {
+      select.selectedIndex = 0;
+    }
+  } catch (error) {
+    console.error('Failed to load models:', error);
+    select.innerHTML = '<option value="">加载失败，将使用默认模型</option>';
+  }
+}
+
+// 页面加载时自动获取模型列表
+document.addEventListener('DOMContentLoaded', loadModels);
+
+// ============================
+// 自定义提示词
+// ============================
+
+const DEFAULT_PROMPT = `你是一位专业的思维导图设计师。用户会给你一个主题，你需要围绕该主题生成一份结构清晰、层次分明的思维导图大纲。
+
+## 输出要求
+
+1. 使用 Markdown 标题格式（# 表示中心主题，## 表示一级分支，### 表示二级分支，以此类推）
+2. 中心主题只能有一个（一个 #）
+3. 一级分支 4-8 个（##），每个一级分支下有 2-5 个二级分支（###）
+4. 如有必要可以有三级分支（####），但不要超过四级
+5. 每个节点的文字简洁有力，一般不超过 10 个字
+6. 直接输出 Markdown 内容，不要用代码块包裹，不要添加任何额外说明
+
+## 示例输出
+
+# 人工智能
+## 机器学习
+### 监督学习
+### 无监督学习
+### 强化学习
+## 深度学习
+### 卷积神经网络
+### 循环神经网络
+### Transformer
+## 自然语言处理
+### 文本分类
+### 机器翻译
+### 对话系统
+## 计算机视觉
+### 图像识别
+### 目标检测
+### 图像生成`;
+
+/**
+ * 展开/折叠自定义提示词区域
+ */
+function togglePrompt() {
+  const body = document.getElementById('promptBody');
+  const icon = document.getElementById('promptToggleIcon');
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? 'block' : 'none';
+  icon.textContent = isHidden ? '▼' : '▶';
+}
+
+/**
+ * 恢复默认提示词
+ */
+function resetPrompt() {
+  const textarea = document.getElementById('customPrompt');
+  textarea.value = '';
+  updatePromptCharCount();
+  updatePromptHint();
+}
+
+/**
+ * 将默认提示词填充到文本框，方便用户参考修改
+ */
+function fillDefaultPrompt() {
+  const textarea = document.getElementById('customPrompt');
+  textarea.value = DEFAULT_PROMPT;
+  updatePromptCharCount();
+  updatePromptHint();
+  textarea.focus();
+}
+
+/**
+ * 更新提示词字符计数
+ */
+function updatePromptCharCount() {
+  const textarea = document.getElementById('customPrompt');
+  const count = document.getElementById('promptCharCount');
+  count.textContent = `${textarea.value.length} / 2000`;
+}
+
+/**
+ * 更新提示词状态提示
+ */
+function updatePromptHint() {
+  const textarea = document.getElementById('customPrompt');
+  const hint = document.getElementById('promptToggleHint');
+  if (textarea.value.trim()) {
+    hint.textContent = '（已自定义）';
+    hint.style.color = 'var(--primary)';
+  } else {
+    hint.textContent = '（使用默认提示词）';
+    hint.style.color = '';
+  }
+}
+
+// 监听提示词输入
+document.addEventListener('DOMContentLoaded', () => {
+  const textarea = document.getElementById('customPrompt');
+  textarea.addEventListener('input', () => {
+    // 限制最大长度
+    if (textarea.value.length > 2000) {
+      textarea.value = textarea.value.slice(0, 2000);
+    }
+    updatePromptCharCount();
+    updatePromptHint();
+  });
+});
+
+// ============================
 // 核心流程
 // ============================
 
@@ -32,11 +187,23 @@ async function handleGenerate() {
   hideError();
 
   try {
+    // 获取选中的模型
+    const modelSelect = document.getElementById('modelSelect');
+    const selectedModel = modelSelect.value || '';
+
+    // 获取自定义提示词
+    const promptTextarea = document.getElementById('customPrompt');
+    const customPrompt = promptTextarea.value.trim() || '';
+
     // 调用后端 API
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({
+        topic,
+        model: selectedModel,
+        customPrompt: customPrompt,
+      }),
     });
 
     const data = await response.json();

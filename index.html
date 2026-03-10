@@ -33,6 +33,12 @@
 
     <!-- 输入区域 -->
     <section class="input-section">
+      <div class="model-select-group">
+        <label for="modelSelect">🤖 模型</label>
+        <select id="modelSelect">
+          <option value="">加载中...</option>
+        </select>
+      </div>
       <div class="input-group">
         <input
           type="text"
@@ -52,6 +58,30 @@
         </button>
       </div>
       <div id="errorMsg" class="error-msg" style="display:none;"></div>
+
+      <!-- 自定义提示词区域 -->
+      <div class="prompt-section">
+        <button class="prompt-toggle" id="promptToggle" onclick="togglePrompt()">
+          <span class="prompt-toggle-icon" id="promptToggleIcon">▶</span>
+          <span>📝 自定义提示词</span>
+          <span class="prompt-toggle-hint" id="promptToggleHint">（使用默认提示词）</span>
+        </button>
+        <div class="prompt-body" id="promptBody" style="display:none;">
+          <textarea
+            id="customPrompt"
+            class="prompt-textarea"
+            rows="8"
+            placeholder="输入自定义系统提示词，留空则使用默认提示词。&#10;&#10;默认提示词会指导 AI 生成 Markdown 标题格式的思维导图大纲。&#10;你可以自定义让 AI 按照你的需求生成内容，但请确保输出仍为 Markdown 标题格式以正确渲染思维导图。"
+          ></textarea>
+          <div class="prompt-actions">
+            <div class="prompt-actions-left">
+              <button class="prompt-action-btn" onclick="fillDefaultPrompt()">📋 查看默认提示词</button>
+              <button class="prompt-action-btn" onclick="resetPrompt()">🔄 清空</button>
+            </div>
+            <span class="prompt-char-count" id="promptCharCount">0 / 2000</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- 工具栏 -->

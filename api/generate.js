@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { topic } = req.body;
+    const { topic, model, customPrompt } = req.body;
 
     if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
       return res.status(400).json({ error: 'Please provide a valid topic' });
@@ -26,21 +26,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Topic is too long (max 200 chars)' });
     }
 
-    // 直接调用 OpenAI Chat Completions API
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0.7,
-        max_tokens: 4096,
-        messages: [
-          {
-            role: 'system',
-            content: `你是一位专业的思维导图设计师。用户会给你一个主题，你需要围绕该主题生成一份结构清晰、层次分明的思维导图大纲。
+    // 使用用户选择的模型，若未传则使用环境变量中的默认模型
+    const selectedModel = (model && typeof model === 'string' && model.trim()) ? model.trim() : OPENAI_MODEL;
+
+    // 默认系统提示词
+    const defaultSystemPrompt = `你是一位专业的思维导图设计师。用户会给你一个主题，你需要围绕该主题生成一份结构清晰、层次分明的思维导图大纲。
 
 ## 输出要求
 
@@ -69,11 +59,38 @@ export default async function handler(req, res) {
 ## 计算机视觉
 ### 图像识别
 ### 目标检测
-### 图像生成`,
+### 图像生成`;
+
+    // 使用自定义提示词或默认提示词
+    const useCustomPrompt = customPrompt && typeof customPrompt === 'string' && customPrompt.trim();
+    const systemPrompt = useCustomPrompt
+      ? customPrompt.trim()
+      : defaultSystemPrompt;
+
+    // 当使用自定义提示词时，user message 只发送主题本身，避免固定引导语覆盖自定义效果
+    const userMessage = useCustomPrompt
+      ? topic.trim()
+      : `请为以下主题生成思维导图大纲：${topic.trim()}`;
+
+    // 直接调用 OpenAI Chat Completions API
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        temperature: 0.7,
+        max_tokens: 4096,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
           },
           {
             role: 'user',
-            content: `请为以下主题生成思维导图大纲：${topic.trim()}`,
+            content: userMessage,
           },
         ],
       }),
