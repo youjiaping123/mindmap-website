@@ -6,7 +6,7 @@
 export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const defaultModel = process.env.OPENAI_MODEL || 'gpt-4o';
+  const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
   return { apiKey, baseUrl, defaultModel };
 }
 

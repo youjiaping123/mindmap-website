@@ -58,6 +58,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 150);
   }
 
+  // ESC 键退出模拟全屏（原生全屏浏览器自动处理）
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const panel = $('previewPanel');
+      if (panel && panel.classList.contains('is-fake-fullscreen')) {
+        e.preventDefault();
+        _exitFakeFullscreen(panel);
+      }
+    }
+  });
+
+  // 浏览器返回按钮退出模拟全屏 (移动端常用手势)
+  window.addEventListener('popstate', (e) => {
+    const panel = $('previewPanel');
+    if (panel && panel.classList.contains('is-fake-fullscreen')) {
+      e.preventDefault();
+      _exitFakeFullscreen(panel);
+    }
+  });
+
   // 页面加载完成后的入场动画
   requestAnimationFrame(() => {
     document.body.style.opacity = '1';

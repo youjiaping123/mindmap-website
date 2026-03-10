@@ -58,19 +58,70 @@ function switchTab(tab) {
 
 /* ===== 全屏切换 ===== */
 
-/** 切换预览面板全屏 */
+/** 检测是否支持原生全屏 API */
+function _supportsNativeFullscreen() {
+  const el = document.documentElement;
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+
+/** 检测当前是否处于全屏状态（原生或模拟） */
+function _isFullscreen() {
+  const panel = $('previewPanel');
+  return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+    (panel && panel.classList.contains('is-fake-fullscreen')));
+}
+
+/** 进入模拟全屏 (用于 iOS 等不支持原生全屏的设备) */
+function _enterFakeFullscreen(panel) {
+  panel.classList.add('is-fake-fullscreen');
+  document.body.classList.add('fake-fullscreen-active');
+  // 记录滚动位置以便退出时恢复
+  panel._savedScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+  // push history state，让移动端返回键可退出全屏
+  history.pushState({ fakeFullscreen: true }, '');
+  _updateFullscreenIcon();
+  // 延迟 refit markmap
+  setTimeout(() => {
+    if (AppState.markmapInstance) AppState.markmapInstance.fit();
+  }, 150);
+}
+
+/** 退出模拟全屏 */
+function _exitFakeFullscreen(panel) {
+  panel.classList.remove('is-fake-fullscreen');
+  document.body.classList.remove('fake-fullscreen-active');
+  if (typeof panel._savedScrollY === 'number') {
+    window.scrollTo(0, panel._savedScrollY);
+  }
+  _updateFullscreenIcon();
+  setTimeout(() => {
+    if (AppState.markmapInstance) AppState.markmapInstance.fit();
+  }, 150);
+}
+
+/** 切换预览面板全屏（原生 + 模拟 fallback） */
 function toggleFullscreen() {
   const panel = $('previewPanel');
   if (!panel) return;
 
-  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  const isFake = panel.classList.contains('is-fake-fullscreen');
+  const isNativeFS = document.fullscreenElement || document.webkitFullscreenElement;
 
-  if (!isFullscreen) {
+  if (isNativeFS) {
+    // 退出原生全屏
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+  } else if (isFake) {
+    // 退出模拟全屏
+    _exitFakeFullscreen(panel);
+  } else if (_supportsNativeFullscreen()) {
+    // 优先使用原生全屏
     const req = panel.requestFullscreen || panel.webkitRequestFullscreen;
     if (req) req.call(panel);
   } else {
-    const exit = document.exitFullscreen || document.webkitExitFullscreen;
-    if (exit) exit.call(document);
+    // fallback: 模拟全屏（iOS Safari 等）
+    _enterFakeFullscreen(panel);
   }
 }
 
@@ -79,9 +130,9 @@ function _updateFullscreenIcon() {
   const icon = $('fullscreenIcon');
   if (!icon) return;
 
-  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  const isFS = _isFullscreen();
 
-  if (isFullscreen) {
+  if (isFS) {
     // 缩小图标（退出全屏）
     icon.innerHTML =
       '<path d="M8 3v3a2 2 0 0 1-2 2H3m18-5v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3m18 5v-3a2 2 0 0 1 2-2h3" ' +

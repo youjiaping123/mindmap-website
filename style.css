@@ -947,6 +947,72 @@ body {
   right: 20px;
 }
 
+/* 模拟全屏模式 (用于 iOS Safari 等不支持 Fullscreen API 的设备) */
+.preview-panel.is-fake-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #ffffff;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.preview-panel.is-fake-fullscreen .markmap-container {
+  min-height: 100vh;
+  min-height: 100dvh;
+  border-radius: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.preview-panel.is-fake-fullscreen #markmapSvg {
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.preview-panel.is-fake-fullscreen .fullscreen-btn {
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.preview-panel.is-fake-fullscreen .mm-toolbar {
+  bottom: 20px;
+  right: 20px;
+  z-index: 10001;
+}
+
+/* 模拟全屏时隐藏其余页面内容，防止滚动穿透 */
+body.fake-fullscreen-active {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* 手机端模拟全屏的安全区域适配 */
+@supports (padding: env(safe-area-inset-top)) {
+  .preview-panel.is-fake-fullscreen .fullscreen-btn {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: calc(env(safe-area-inset-right, 0px) + 12px);
+  }
+
+  .preview-panel.is-fake-fullscreen .mm-toolbar {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    right: calc(env(safe-area-inset-right, 0px) + 16px);
+  }
+}
+
 /* Markdown Panel */
 .markdown-panel {
   padding: 24px;
@@ -1560,6 +1626,22 @@ body {
 
   .history-item-delete {
     opacity: 1;
+  }
+
+  /* 手机端全屏按钮更大，方便触摸 */
+  .fullscreen-btn {
+    width: 42px;
+    height: 42px;
+    top: 8px;
+    right: 8px;
+  }
+
+  /* 手机端模拟全屏微调 */
+  .preview-panel.is-fake-fullscreen .fullscreen-btn {
+    top: 12px;
+    right: 12px;
+    width: 48px;
+    height: 48px;
   }
 }
 
