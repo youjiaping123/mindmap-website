@@ -69,10 +69,11 @@ async function handleGenerate() {
   AppState.streamAbort = abortController;
   AppState.isStreaming = true;
 
-  // 节流更新 markmap
+  // 节流更新 markmap（流式生成期间用线性缓动 + 短时长保持丝滑）
   let renderTimer = null;
   let lastRenderTime = 0;
-  const RENDER_INTERVAL = 150; // ms
+  let rafId = null;
+  const RENDER_INTERVAL = 400; // ms — 与 duration=400ms 匹配，积攒更多节点一起动画，更慢更丝滑
 
   function scheduleRender() {
     const now = Date.now();
@@ -88,8 +89,13 @@ async function handleGenerate() {
     lastRenderTime = Date.now();
     const md = AppState.currentMarkdown.trim();
     if (md) {
-      updateMarkmap(md);
-      $('markdownContent').textContent = md;
+      // rAF 确保更新发生在浏览器绘制帧内，避免强制回流
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateMarkmap(md, false); // false = 流式期间禁用过渡动画
+        $('markdownContent').textContent = md;
+      });
     }
   }
 
@@ -148,14 +154,36 @@ async function handleGenerate() {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
 
     const finalMd = AppState.currentMarkdown.trim();
     if (!finalMd) {
       throw new Error('AI 返回了空内容，请重试');
     }
 
-    // 最终完整渲染一次（用 renderMarkmap 确保工具栏等完整）
-    renderMarkmap(finalMd);
+    // 最终渲染：恢复丝滑的 easeQuadOut 缓动 + 适当时长，做一次优雅的展开
+    if (AppState.markmapInstance) {
+      // 切回正常动画模式（easeQuadOut）
+      _animationMode = 'idle';
+      // 用稍长的 duration 做一次完整的"定位到位"动画，视觉上有收束感
+      AppState.markmapInstance.setOptions({ duration: 800 });
+      // 用最终数据做一次带动画的更新 + fit，让整棵树优雅地展开到位
+      const transformer = getTransformer();
+      const { root } = transformer.transform(finalMd);
+      AppState.markmapInstance.setData(root);
+      AppState.markmapInstance.fit();
+      // 动画结束后恢复常规交互时长
+      setTimeout(() => {
+        if (AppState.markmapInstance) {
+          AppState.markmapInstance.setOptions({ duration: 300 });
+        }
+      }, 900);
+    } else {
+      renderMarkmap(finalMd);
+    }
     $('markdownContent').textContent = finalMd;
 
     // 保存历史

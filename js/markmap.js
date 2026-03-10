@@ -13,6 +13,36 @@ function getTransformer() {
   return _transformer;
 }
 
+/**
+ * 当前流式状态标记，供 transition 补丁判断使用哪种缓动
+ * 'idle' = 正常交互, 'streaming' = 流式生成中
+ */
+let _animationMode = 'idle';
+
+/**
+ * Monkey-patch markmap 实例的 transition() 方法，
+ * 用更丝滑的缓动函数替代 d3 默认的 easeCubicInOut（后者在短时长下
+ * 会产生"起步慢→加速→减速"的跳跃感）。
+ *
+ * - 流式期间（streaming）：easeLinear — 线性过渡在极短时长下最自然，
+ *   多次叠加也不会抖动
+ * - 正常交互（idle）：easeQuadOut — 快速启动、缓慢停止，
+ *   感知上比 cubicInOut 流畅得多，没有"卡顿→弹跳"的感觉
+ */
+function _patchTransition(mm) {
+  const origTransition = mm.transition.bind(mm);
+  mm.transition = function (sel) {
+    const t = origTransition(sel);
+    // 根据当前模式选缓动
+    if (_animationMode === 'streaming') {
+      t.ease(d3.easeLinear);
+    } else {
+      t.ease(d3.easeQuadOut);
+    }
+    return t;
+  };
+}
+
 /** 用 markmap 渲染 Markdown 为 SVG 思维导图（首次创建） */
 function renderMarkmap(markdown) {
   const svgEl = $('markmapSvg');
@@ -32,11 +62,16 @@ function renderMarkmap(markdown) {
 
   AppState.markmapInstance = Markmap.create(svgEl, {
     autoFit: true,
-    duration: 500,
+    duration: 300,       // 展开/折叠动画时长
     maxWidth: 300,
     paddingX: 16,
     initialExpandLevel: -1,
+    zoom: true,
+    pan: true,
   }, root);
+
+  // 补丁：替换缓动函数
+  _patchTransition(AppState.markmapInstance);
 
   // 添加缩放工具栏
   try {
@@ -52,17 +87,21 @@ function renderMarkmap(markdown) {
     console.log('Toolbar not available:', e.message);
   }
 
-  // 延迟 fit 确保渲染完成
-  setTimeout(() => {
-    if (AppState.markmapInstance) AppState.markmapInstance.fit();
-  }, 300);
+  // 等待浏览器完成布局后再 fit，用 rAF 双帧确保渲染完成
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (AppState.markmapInstance) AppState.markmapInstance.fit();
+    });
+  });
 }
 
 /**
  * 增量更新已有的 markmap（不销毁重建，只更新数据）
  * 用于流式生成时的高效实时刷新
+ * @param {string} markdown - 新的 Markdown 内容
+ * @param {boolean} animate - 是否启用完整动画
  */
-function updateMarkmap(markdown) {
+function updateMarkmap(markdown, animate = true) {
   if (!AppState.markmapInstance) {
     renderMarkmap(markdown);
     return;
@@ -71,10 +110,20 @@ function updateMarkmap(markdown) {
   try {
     const transformer = getTransformer();
     const { root } = transformer.transform(markdown);
+
+    if (!animate) {
+      // 流式模式：线性缓动 + 较长时长 = 多个节点同时匀速滑入，连续流动感
+      _animationMode = 'streaming';
+      AppState.markmapInstance.setOptions({ duration: 400 });
+    } else {
+      _animationMode = 'idle';
+    }
+
     AppState.markmapInstance.setData(root);
+
+    // 流式期间也调 fit，线性缓动下视口平移是匀速的，不会跳动
     AppState.markmapInstance.fit();
   } catch (e) {
-    // fallback: 如果增量更新失败，重新创建
     renderMarkmap(markdown);
   }
 }

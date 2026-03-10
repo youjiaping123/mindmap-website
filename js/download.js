@@ -15,7 +15,7 @@ async function downloadXmind() {
   }
 }
 
-/** 下载 PNG 图片 */
+/** 下载 JPEG 图片 */
 async function downloadPng() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
   switchTab('preview');
@@ -23,28 +23,32 @@ async function downloadPng() {
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
     await PngExport.download(svgEl, filename, {
-      scale: 8,
+      scale: 6,
       padding: 50,
       backgroundColor: '#ffffff',
+      quality: 0.95,
     });
-    showToast('PNG 图片下载成功', 'success');
+    showToast('JPEG 图片下载成功', 'success');
   } catch (error) {
-    showError('导出 PNG 失败: ' + error.message);
+    showError('导出图片失败: ' + error.message);
   }
 }
 
-/** 下载矢量 PDF（通过浏览器打印功能，需用户选择 "另存为 PDF"） */
+/** 下载高清 PDF */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
   switchTab('preview');
   try {
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
-    showToast('即将打开打印对话框，请选择"另存为 PDF"即可导出矢量 PDF', 'info', 4000);
-    PngExport.downloadPdf(svgEl, filename, {
+    showToast('正在生成 PDF...', 'info');
+    await PngExport.downloadPdf(svgEl, filename, {
+      scale: 6,
       padding: 50,
       backgroundColor: '#ffffff',
+      quality: 0.95,
     });
+    showToast('PDF 下载成功', 'success');
   } catch (error) {
     showError('导出 PDF 失败: ' + error.message);
   }
