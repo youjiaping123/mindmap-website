@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   // 尝试从远程 API 获取
   try {
-    const response = await fetch(`${baseUrl}/models`, {
+    const response = await fetch(`${baseUrl}/v1/models`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${apiKey}` },
     });
