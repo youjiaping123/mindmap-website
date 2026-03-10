@@ -11,16 +11,23 @@ export default async function handler(req, res) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
 
+  // 支持通过环境变量 OPENAI_MODELS 手动指定模型列表（逗号分隔）
+  const envModels = process.env.OPENAI_MODELS;
+  if (envModels) {
+    const models = envModels.split(',').map((m) => m.trim()).filter(Boolean);
+    return res.status(200).json({ success: true, models, default: defaultModel });
+  }
+
+  // 尝试从远程 API 获取
   try {
-    const response = await fetch(`${baseUrl}/v1/models`, {
+    const response = await fetch(`${baseUrl}/models`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${apiKey}` },
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error('Models API error:', response.status, errText);
-      return errorResponse(res, 502, 'Failed to fetch models');
+      console.warn('Models API not available:', response.status, '- falling back to default model');
+      return res.status(200).json({ success: true, models: [defaultModel], default: defaultModel });
     }
 
     const data = await response.json();
@@ -28,13 +35,13 @@ export default async function handler(req, res) {
       .map((m) => m.id)
       .sort((a, b) => a.localeCompare(b));
 
-    return res.status(200).json({
-      success: true,
-      models,
-      default: defaultModel,
-    });
+    if (models.length === 0) {
+      return res.status(200).json({ success: true, models: [defaultModel], default: defaultModel });
+    }
+
+    return res.status(200).json({ success: true, models, default: defaultModel });
   } catch (error) {
-    console.error('Server error:', error);
-    return errorResponse(res, 500, 'Internal server error');
+    console.warn('Failed to fetch models, falling back to default:', error.message);
+    return res.status(200).json({ success: true, models: [defaultModel], default: defaultModel });
   }
 }

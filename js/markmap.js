@@ -3,13 +3,22 @@
  * 依赖: state.js
  */
 
-/** 用 markmap 渲染 Markdown 为 SVG 思维导图 */
+/** 全局复用的 Transformer 实例 */
+let _transformer = null;
+function getTransformer() {
+  if (!_transformer) {
+    const { Transformer } = window.markmap;
+    _transformer = new Transformer();
+  }
+  return _transformer;
+}
+
+/** 用 markmap 渲染 Markdown 为 SVG 思维导图（首次创建） */
 function renderMarkmap(markdown) {
   const svgEl = $('markmapSvg');
   svgEl.innerHTML = '';
 
-  const { Transformer } = window.markmap;
-  const transformer = new Transformer();
+  const transformer = getTransformer();
   const { root, features } = transformer.transform(markdown);
   const assets = transformer.getUsedAssets(features);
 
@@ -47,4 +56,25 @@ function renderMarkmap(markdown) {
   setTimeout(() => {
     if (AppState.markmapInstance) AppState.markmapInstance.fit();
   }, 300);
+}
+
+/**
+ * 增量更新已有的 markmap（不销毁重建，只更新数据）
+ * 用于流式生成时的高效实时刷新
+ */
+function updateMarkmap(markdown) {
+  if (!AppState.markmapInstance) {
+    renderMarkmap(markdown);
+    return;
+  }
+
+  try {
+    const transformer = getTransformer();
+    const { root } = transformer.transform(markdown);
+    AppState.markmapInstance.setData(root);
+    AppState.markmapInstance.fit();
+  } catch (e) {
+    // fallback: 如果增量更新失败，重新创建
+    renderMarkmap(markdown);
+  }
 }

@@ -8,10 +8,16 @@ function setLoading(loading) {
   const btn = $('generateBtn');
   const btnText = btn.querySelector('.btn-text');
   const btnLoading = btn.querySelector('.btn-loading');
+  const loadingText = $('btnLoadingText');
 
-  btn.disabled = loading;
+  // 流式生成中按钮可点击（用于中止），只在非流式 loading 时禁用
+  btn.disabled = loading && !AppState.isStreaming;
   btnText.style.display = loading ? 'none' : 'inline-flex';
   btnLoading.style.display = loading ? 'inline-flex' : 'none';
+
+  if (loadingText) {
+    loadingText.textContent = AppState.isStreaming ? '停止' : '生成中...';
+  }
 }
 
 /** 显示错误消息 */

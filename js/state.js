@@ -10,4 +10,7 @@ const AppState = {
   activePreset: '',
   chatHistory: [],
   chatLoading: false,
+  /** 流式生成相关 */
+  streamAbort: null,    // AbortController，用于取消流式请求
+  isStreaming: false,    // 是否正在流式生成
 };

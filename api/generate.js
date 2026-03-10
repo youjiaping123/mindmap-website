@@ -1,8 +1,9 @@
-// Vercel Serverless Function - 生成思维导图
+// Vercel Serverless Function - 生成思维导图（SSE 流式）
 import {
   getOpenAIConfig,
   resolveModel,
-  callChatCompletions,
+  callChatCompletionsStream,
+  pipeSSE,
   errorResponse,
   DEFAULT_SYSTEM_PROMPT,
 } from './_shared.js';
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
       ? topic.trim()
       : `请为以下主题生成思维导图大纲：${topic.trim()}`;
 
-    const markdown = await callChatCompletions({
+    const upstreamResponse = await callChatCompletionsStream({
       baseUrl,
       apiKey,
       model: selectedModel,
@@ -47,15 +48,8 @@ export default async function handler(req, res) {
       maxTokens: 4096,
     });
 
-    if (!markdown) {
-      return errorResponse(res, 502, 'AI returned empty result, please try again');
-    }
-
-    return res.status(200).json({
-      success: true,
-      markdown,
-      topic: topic.trim(),
-    });
+    // 以 SSE 流式转发给前端
+    await pipeSSE(upstreamResponse, res);
   } catch (error) {
     if (error.message === 'AI_SERVICE_ERROR') {
       return errorResponse(res, 502, 'AI service error, please try again later');

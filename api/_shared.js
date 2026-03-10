@@ -49,6 +49,63 @@ export async function callChatCompletions({ baseUrl, apiKey, model, messages, te
 }
 
 /**
+ * 调用 OpenAI Chat Completions API（流式）
+ * 返回 ReadableStream（来自 fetch response.body）
+ */
+export async function callChatCompletionsStream({ baseUrl, apiKey, model, messages, temperature = 0.7, maxTokens = 4096 }) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature,
+      max_tokens: maxTokens,
+      messages,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('OpenAI API error:', response.status, errText);
+    throw new Error('AI_SERVICE_ERROR');
+  }
+
+  return response;
+}
+
+/**
+ * 将流式响应写入 Vercel Serverless 的 res，作为 SSE 转发
+ */
+export async function pipeSSE(upstreamResponse, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const reader = upstreamResponse.body.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      res.write(chunk);
+    }
+  } catch (err) {
+    console.error('SSE pipe error:', err);
+  } finally {
+    res.end();
+  }
+}
+
+/**
  * 统一错误响应
  */
 export function errorResponse(res, statusCode, message) {
