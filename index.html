@@ -22,6 +22,35 @@
 </head>
 <body>
   <div class="app">
+    <!-- 历史记录按钮（固定在右上角） -->
+    <button class="history-toggle-btn" onclick="toggleHistoryPanel()" title="历史记录">
+      📜 历史记录
+    </button>
+
+    <!-- 历史记录遮罩 -->
+    <div class="history-overlay" id="historyOverlay" onclick="toggleHistoryPanel()"></div>
+
+    <!-- 历史记录侧边面板 -->
+    <aside class="history-panel" id="historyPanel">
+      <div class="history-panel-header">
+        <h2>📜 历史记录</h2>
+        <button class="history-close-btn" onclick="toggleHistoryPanel()">✕</button>
+      </div>
+      <div class="history-panel-actions">
+        <button class="history-clear-btn" id="historyClearBtn" onclick="clearAllHistory()" style="display:none;">
+          🗑️ 清空全部
+        </button>
+      </div>
+      <div class="history-panel-body">
+        <div id="historyEmpty" class="history-empty">
+          <span class="history-empty-icon">📭</span>
+          <p>暂无历史记录</p>
+          <p class="history-empty-hint">生成思维导图后会自动保存到这里</p>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </aside>
+
     <!-- 顶部导航 -->
     <header class="header">
       <div class="logo">

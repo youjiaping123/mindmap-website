@@ -9,6 +9,193 @@
 let currentMarkdown = '';   // 当前的 Markdown 内容
 let currentTopic = '';      // 当前的主题
 let markmapInstance = null; // markmap 实例
+let historyPanelOpen = false; // 历史面板是否打开
+
+// ============================
+// 历史记录管理 (localStorage)
+// ============================
+
+const HISTORY_KEY = 'mindmap_history';
+const MAX_HISTORY = 50;
+
+/**
+ * 从 localStorage 获取历史记录
+ */
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 保存一条历史记录
+ */
+function saveHistory(topic, markdown) {
+  const history = getHistory();
+  const record = {
+    id: Date.now().toString(),
+    topic: topic,
+    markdown: markdown,
+    time: new Date().toISOString(),
+  };
+  // 最新的在前面
+  history.unshift(record);
+  // 限制最大条数
+  if (history.length > MAX_HISTORY) {
+    history.length = MAX_HISTORY;
+  }
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  renderHistoryList();
+}
+
+/**
+ * 删除一条历史记录
+ */
+function deleteHistory(id) {
+  const history = getHistory().filter((item) => item.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  renderHistoryList();
+}
+
+/**
+ * 清空所有历史记录
+ */
+function clearAllHistory() {
+  if (!confirm('确定要清空所有历史记录吗？')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistoryList();
+}
+
+/**
+ * 加载一条历史记录到视图
+ */
+function loadHistory(id) {
+  const history = getHistory();
+  const record = history.find((item) => item.id === id);
+  if (!record) return;
+
+  currentMarkdown = record.markdown;
+  currentTopic = record.topic;
+
+  // 设置输入框
+  document.getElementById('topicInput').value = record.topic;
+
+  // 渲染思维导图
+  renderMarkmap(currentMarkdown);
+
+  // 显示工具栏和内容区
+  document.getElementById('toolbar').style.display = 'flex';
+  document.getElementById('contentArea').style.display = 'flex';
+
+  // 显示 Markdown 源码
+  document.getElementById('markdownContent').textContent = currentMarkdown;
+
+  // 默认切到预览 tab
+  switchTab('preview');
+
+  // 移动端自动关闭历史面板
+  if (window.innerWidth <= 640) {
+    toggleHistoryPanel();
+  }
+}
+
+/**
+ * 渲染历史记录列表到面板
+ */
+function renderHistoryList() {
+  const list = document.getElementById('historyList');
+  const emptyTip = document.getElementById('historyEmpty');
+  const clearBtn = document.getElementById('historyClearBtn');
+  if (!list) return;
+
+  const history = getHistory();
+
+  if (history.length === 0) {
+    list.innerHTML = '';
+    if (emptyTip) emptyTip.style.display = 'block';
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+
+  if (emptyTip) emptyTip.style.display = 'none';
+  if (clearBtn) clearBtn.style.display = 'inline-flex';
+
+  list.innerHTML = history.map((item) => {
+    const date = new Date(item.time);
+    const timeStr = formatTime(date);
+    // 从 markdown 中提取简短摘要（取第一行主标题）
+    const firstLine = item.markdown.split('\n').find((l) => l.trim()) || '';
+    const summary = firstLine.replace(/^#+\s*/, '').trim();
+    return `
+      <div class="history-item" data-id="${item.id}">
+        <div class="history-item-main" onclick="loadHistory('${item.id}')">
+          <div class="history-item-topic">${escapeHtml(item.topic)}</div>
+          <div class="history-item-summary">${escapeHtml(summary)}</div>
+          <div class="history-item-time">${timeStr}</div>
+        </div>
+        <button class="history-item-delete" onclick="event.stopPropagation();deleteHistory('${item.id}')" title="删除">
+          ✕
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * 切换历史面板显示/隐藏
+ */
+function toggleHistoryPanel() {
+  const panel = document.getElementById('historyPanel');
+  const overlay = document.getElementById('historyOverlay');
+  if (!panel) return;
+
+  historyPanelOpen = !historyPanelOpen;
+  if (historyPanelOpen) {
+    panel.classList.add('open');
+    overlay.classList.add('open');
+    renderHistoryList();
+  } else {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+}
+
+/**
+ * 格式化时间显示
+ */
+function formatTime(date) {
+  const now = new Date();
+  const diff = now - date;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return '刚刚';
+  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`;
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+/**
+ * HTML 转义
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// 页面加载时渲染历史列表
+document.addEventListener('DOMContentLoaded', renderHistoryList);
 
 // ============================
 // 模型列表加载
@@ -1059,6 +1246,9 @@ async function handleGenerate() {
     // 保存结果
     currentMarkdown = data.markdown;
     currentTopic = topic;
+
+    // 保存到历史记录
+    saveHistory(topic, data.markdown);
 
     // 渲染思维导图
     renderMarkmap(currentMarkdown);
