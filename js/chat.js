@@ -37,6 +37,7 @@ async function handleChat() {
         message,
         model: selectedModel,
         history: AppState.chatHistory.slice(-6),
+        isFirstTurn: AppState.isFirstChatTurn,
       }),
     });
 
@@ -49,13 +50,21 @@ async function handleChat() {
     removeChatMessage(thinkingId);
 
     if (data.mode === 'patch' && Array.isArray(data.operations)) {
+      // 保存撤销快照
+      AppState.markdownUndoStack.push(AppState.currentMarkdown);
+      if (AppState.markdownUndoStack.length > AppState.maxUndoSize) {
+        AppState.markdownUndoStack.shift();
+      }
+
       const result = applyOperations(AppState.currentMarkdown, data.operations);
 
       AppState.chatHistory.push({ role: 'user', content: message });
-      AppState.chatHistory.push({ role: 'assistant', content: JSON.stringify(data.operations) });
+      AppState.chatHistory.push({ role: 'assistant', content: result.summary.join('; ') });
 
       AppState.currentMarkdown = result.markdown;
+      AppState.isFirstChatTurn = false;
       appendChatMessage('assistant', result.summary.join('\n'));
+      updateUndoButton();
     } else if (data.mode === 'fallback') {
       appendChatMessage('assistant', `⚠️ ${data.description || 'AI 返回格式异常，请重试'}`);
       return;
@@ -113,8 +122,11 @@ function setChatLoading(loading) {
 /** 清空对话记录 */
 function clearChat() {
   AppState.chatHistory = [];
+  AppState.markdownUndoStack = [];
+  AppState.isFirstChatTurn = true;
   const list = $('chatMessages');
   if (list) list.innerHTML = '';
+  updateUndoButton();
 }
 
 /** 使用快捷指令 */
@@ -124,4 +136,21 @@ function useChatQuick(text) {
     input.value = text;
     input.focus();
   }
+}
+
+/** 撤销上一次对话修改 */
+function undoChat() {
+  if (AppState.markdownUndoStack.length === 0) return;
+
+  AppState.currentMarkdown = AppState.markdownUndoStack.pop();
+  renderMarkmap(AppState.currentMarkdown);
+  $('markdownContent').textContent = AppState.currentMarkdown;
+  appendChatMessage('assistant', '↩️ 已撤销上一步修改');
+  updateUndoButton();
+}
+
+/** 更新撤销按钮的可用状态 */
+function updateUndoButton() {
+  const btn = $('chatUndoBtn');
+  if (btn) btn.disabled = AppState.markdownUndoStack.length === 0;
 }

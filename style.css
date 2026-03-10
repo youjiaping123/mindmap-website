@@ -1312,6 +1312,12 @@ body.fake-fullscreen-active {
   border-radius: 10px;
 }
 
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-clear-btn {
   display: inline-flex;
   align-items: center;
@@ -1330,6 +1336,12 @@ body.fake-fullscreen-active {
   color: var(--error);
   border-color: var(--error);
   background: var(--error-light);
+}
+
+.chat-clear-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Quick bar */

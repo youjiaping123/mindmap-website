@@ -17,22 +17,40 @@ function parseMarkdownLines(markdown) {
 }
 
 /**
- * 找到目标节点的行索引（模糊匹配，忽略 emoji 和首尾空格）
+ * 找到目标节点的行索引
+ * 支持 level 辅助定位（如果提供了 level，优先精确匹配 text + level）
+ * 回退到模糊匹配（忽略 emoji 和首尾空格）
  */
-function findNodeIndex(lines, targetText) {
+function findNodeIndex(lines, targetText, targetLevel) {
   const normalize = (s) =>
     s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '').trim();
   const target = normalize(targetText);
 
-  // 精确匹配
+  // 1. 精确匹配 text + level（最可靠）
+  if (targetLevel && targetLevel > 0) {
+    const idx = lines.findIndex(
+      (l) => l.level === targetLevel && normalize(l.text) === target
+    );
+    if (idx !== -1) return idx;
+  }
+
+  // 2. 精确匹配 text（不限 level）
   let idx = lines.findIndex((l) => l.level > 0 && normalize(l.text) === target);
   if (idx !== -1) return idx;
 
-  // 包含匹配
+  // 3. 包含匹配（带 level 约束）
+  if (targetLevel && targetLevel > 0) {
+    idx = lines.findIndex(
+      (l) => l.level === targetLevel && normalize(l.text).includes(target)
+    );
+    if (idx !== -1) return idx;
+  }
+
+  // 4. 包含匹配（不限 level）
   idx = lines.findIndex((l) => l.level > 0 && normalize(l.text).includes(target));
   if (idx !== -1) return idx;
 
-  // 反向包含
+  // 5. 反向包含
   idx = lines.findIndex((l) => l.level > 0 && target.includes(normalize(l.text)));
   return idx;
 }
@@ -96,7 +114,7 @@ function applyOperations(markdown, operations) {
     try {
       switch (op.op) {
         case 'expand': {
-          const idx = findNodeIndex(lines, op.target);
+          const idx = findNodeIndex(lines, op.target, op.level);
           if (idx === -1) { appliedOps.push(`⚠️ 未找到节点「${op.target}」`); break; }
           const [, rangeEnd] = getNodeRange(lines, idx);
           const childLines = adjustChildLevels(op.children, lines[idx].level);
@@ -105,7 +123,7 @@ function applyOperations(markdown, operations) {
           break;
         }
         case 'delete': {
-          const idx = findNodeIndex(lines, op.target);
+          const idx = findNodeIndex(lines, op.target, op.level);
           if (idx === -1) { appliedOps.push(`⚠️ 未找到节点「${op.target}」`); break; }
           const [start, end] = getNodeRange(lines, idx);
           lines.splice(start, end - start);
@@ -113,7 +131,7 @@ function applyOperations(markdown, operations) {
           break;
         }
         case 'rename': {
-          const idx = findNodeIndex(lines, op.target);
+          const idx = findNodeIndex(lines, op.target, op.level);
           if (idx === -1) { appliedOps.push(`⚠️ 未找到节点「${op.target}」`); break; }
           const prefix = '#'.repeat(lines[idx].level) + ' ';
           lines[idx] = { level: lines[idx].level, text: op.newName, raw: prefix + op.newName };
@@ -121,7 +139,7 @@ function applyOperations(markdown, operations) {
           break;
         }
         case 'insert': {
-          const idx = findNodeIndex(lines, op.target);
+          const idx = findNodeIndex(lines, op.target, op.level);
           if (idx === -1) { appliedOps.push(`⚠️ 未找到节点「${op.target}」`); break; }
           const [, rangeEnd] = getNodeRange(lines, idx);
           const newLines = op.content.split('\n').filter((l) => l.trim()).map(parseLine);
@@ -130,7 +148,7 @@ function applyOperations(markdown, operations) {
           break;
         }
         case 'replace': {
-          const idx = findNodeIndex(lines, op.target);
+          const idx = findNodeIndex(lines, op.target, op.level);
           if (idx === -1) { appliedOps.push(`⚠️ 未找到节点「${op.target}」`); break; }
           const [start, end] = getNodeRange(lines, idx);
           const newLines = op.content.split('\n').filter((l) => l.trim()).map(parseLine);
