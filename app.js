@@ -1417,8 +1417,199 @@ async function downloadPng() {
 let chatHistory = []; // 对话历史 [{role, content}]
 let chatLoading = false;
 
+// ============================
+// Markdown 局部操作引擎
+// ============================
+
 /**
- * 发送对话消息，修改思维导图
+ * 解析 markdown 的每一行，返回 { level, text, raw } 数组
+ * level: # 的数量（0 表示非标题行）, text: 纯文本, raw: 原始行
+ */
+function parseMarkdownLines(markdown) {
+  return markdown.split('\n').map((raw) => {
+    const match = raw.match(/^(#{1,6})\s+(.*)/);
+    if (match) {
+      return { level: match[1].length, text: match[2].trim(), raw };
+    }
+    return { level: 0, text: raw.trim(), raw };
+  });
+}
+
+/**
+ * 找到目标节点的行索引（模糊匹配，忽略 emoji 和首尾空格）
+ */
+function findNodeIndex(lines, targetText) {
+  const normalize = (s) => s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '').trim();
+  const target = normalize(targetText);
+
+  // 精确匹配
+  let idx = lines.findIndex((l) => l.level > 0 && normalize(l.text) === target);
+  if (idx !== -1) return idx;
+
+  // 包含匹配
+  idx = lines.findIndex((l) => l.level > 0 && normalize(l.text).includes(target));
+  if (idx !== -1) return idx;
+
+  // 反向包含
+  idx = lines.findIndex((l) => l.level > 0 && target.includes(normalize(l.text)));
+  return idx;
+}
+
+/**
+ * 获取一个节点及其所有子节点的行范围 [startIndex, endIndex)（不含 endIndex）
+ */
+function getNodeRange(lines, nodeIndex) {
+  const nodeLevel = lines[nodeIndex].level;
+  let end = nodeIndex + 1;
+  while (end < lines.length) {
+    // 遇到同级或更高级（level <= nodeLevel）的标题行就停
+    if (lines[end].level > 0 && lines[end].level <= nodeLevel) break;
+    end++;
+  }
+  return [nodeIndex, end];
+}
+
+/**
+ * 应用一组操作指令到 markdown，返回新的 markdown
+ */
+function applyOperations(markdown, operations) {
+  let lines = parseMarkdownLines(markdown);
+  const appliedOps = [];
+
+  for (const op of operations) {
+    try {
+      switch (op.op) {
+        case 'expand': {
+          const idx = findNodeIndex(lines, op.target);
+          if (idx === -1) {
+            appliedOps.push(`⚠️ 未找到节点「${op.target}」`);
+            break;
+          }
+          const nodeLevel = lines[idx].level;
+          const [, rangeEnd] = getNodeRange(lines, idx);
+
+          // 解析 children，自动调整层级
+          const childLines = adjustChildLevels(op.children, nodeLevel);
+
+          // 在该节点现有子节点末尾（rangeEnd 处）插入
+          const newParsed = childLines.map((raw) => {
+            const m = raw.match(/^(#{1,6})\s+(.*)/);
+            return m ? { level: m[1].length, text: m[2].trim(), raw } : { level: 0, text: raw.trim(), raw };
+          });
+          lines.splice(rangeEnd, 0, ...newParsed);
+          appliedOps.push(`✅ 展开了「${op.target}」`);
+          break;
+        }
+
+        case 'delete': {
+          const idx = findNodeIndex(lines, op.target);
+          if (idx === -1) {
+            appliedOps.push(`⚠️ 未找到节点「${op.target}」`);
+            break;
+          }
+          const [start, end] = getNodeRange(lines, idx);
+          lines.splice(start, end - start);
+          appliedOps.push(`✅ 删除了「${op.target}」`);
+          break;
+        }
+
+        case 'rename': {
+          const idx = findNodeIndex(lines, op.target);
+          if (idx === -1) {
+            appliedOps.push(`⚠️ 未找到节点「${op.target}」`);
+            break;
+          }
+          const prefix = '#'.repeat(lines[idx].level) + ' ';
+          lines[idx] = {
+            level: lines[idx].level,
+            text: op.newName,
+            raw: prefix + op.newName,
+          };
+          appliedOps.push(`✅ 「${op.target}」→「${op.newName}」`);
+          break;
+        }
+
+        case 'insert': {
+          const idx = findNodeIndex(lines, op.target);
+          if (idx === -1) {
+            appliedOps.push(`⚠️ 未找到节点「${op.target}」`);
+            break;
+          }
+          // 在目标节点的整个范围之后插入
+          const [, rangeEnd] = getNodeRange(lines, idx);
+          const contentLines = op.content.split('\n').filter((l) => l.trim());
+          const newParsed = contentLines.map((raw) => {
+            const m = raw.match(/^(#{1,6})\s+(.*)/);
+            return m ? { level: m[1].length, text: m[2].trim(), raw } : { level: 0, text: raw.trim(), raw };
+          });
+          lines.splice(rangeEnd, 0, ...newParsed);
+          appliedOps.push(`✅ 在「${op.target}」后插入了新节点`);
+          break;
+        }
+
+        case 'replace': {
+          const idx = findNodeIndex(lines, op.target);
+          if (idx === -1) {
+            appliedOps.push(`⚠️ 未找到节点「${op.target}」`);
+            break;
+          }
+          const [start, end] = getNodeRange(lines, idx);
+          const contentLines = op.content.split('\n').filter((l) => l.trim());
+          const newParsed = contentLines.map((raw) => {
+            const m = raw.match(/^(#{1,6})\s+(.*)/);
+            return m ? { level: m[1].length, text: m[2].trim(), raw } : { level: 0, text: raw.trim(), raw };
+          });
+          lines.splice(start, end - start, ...newParsed);
+          appliedOps.push(`✅ 替换了「${op.target}」`);
+          break;
+        }
+
+        default:
+          appliedOps.push(`⚠️ 未知操作: ${op.op}`);
+      }
+    } catch (e) {
+      appliedOps.push(`❌ 操作失败: ${e.message}`);
+    }
+  }
+
+  const newMarkdown = lines.map((l) => l.raw).join('\n');
+  return { markdown: newMarkdown, summary: appliedOps };
+}
+
+/**
+ * 调整 children 文本的层级：确保相对于父节点的正确层级
+ * children 字符串中使用的是 ### 等格式，需要确保最小层级是 parentLevel+1
+ */
+function adjustChildLevels(childrenStr, parentLevel) {
+  const rawLines = childrenStr.split('\n').filter((l) => l.trim());
+
+  // 找到 children 中最小的层级
+  let minLevel = Infinity;
+  for (const line of rawLines) {
+    const m = line.match(/^(#{1,6})\s/);
+    if (m) minLevel = Math.min(minLevel, m[1].length);
+  }
+
+  if (minLevel === Infinity) {
+    // 没有标题格式，全部作为 parentLevel+1
+    return rawLines.map((l) => '#'.repeat(parentLevel + 1) + ' ' + l.replace(/^#+\s*/, ''));
+  }
+
+  // 计算偏移量，让最小层级变成 parentLevel+1
+  const offset = (parentLevel + 1) - minLevel;
+
+  return rawLines.map((line) => {
+    const m = line.match(/^(#{1,6})\s+(.*)/);
+    if (m) {
+      const newLevel = Math.min(Math.max(m[1].length + offset, 1), 6);
+      return '#'.repeat(newLevel) + ' ' + m[2];
+    }
+    return line;
+  });
+}
+
+/**
+ * 发送对话消息，局部修改思维导图
  */
 async function handleChat() {
   const input = document.getElementById('chatInput');
@@ -1451,7 +1642,7 @@ async function handleChat() {
         currentMarkdown: currentMarkdown,
         message: message,
         model: selectedModel,
-        history: chatHistory.slice(-10), // 最近 10 轮
+        history: chatHistory.slice(-6),
       }),
     });
 
@@ -1464,15 +1655,26 @@ async function handleChat() {
     // 移除"思考中"
     removeChatMessage(thinkingId);
 
-    // 保存对话历史
-    chatHistory.push({ role: 'user', content: `当前思维导图:\n${currentMarkdown}\n\n修改要求: ${message}` });
-    chatHistory.push({ role: 'assistant', content: data.markdown });
+    if (data.mode === 'patch' && Array.isArray(data.operations)) {
+      // 局部修改模式
+      const result = applyOperations(currentMarkdown, data.operations);
 
-    // 更新 markdown
-    currentMarkdown = data.markdown;
+      // 保存对话历史（精简版，不含完整 markdown）
+      chatHistory.push({ role: 'user', content: message });
+      chatHistory.push({ role: 'assistant', content: JSON.stringify(data.operations) });
 
-    // 添加 AI 回复
-    appendChatMessage('assistant', '✅ 已更新思维导图');
+      // 更新 markdown
+      currentMarkdown = result.markdown;
+
+      // 显示操作摘要
+      const summary = result.summary.join('\n');
+      appendChatMessage('assistant', summary);
+
+    } else if (data.mode === 'fallback') {
+      // AI 返回格式异常，提示用户重试
+      appendChatMessage('assistant', `⚠️ ${data.description || 'AI 返回格式异常，请重试'}`);
+      return;
+    }
 
     // 重新渲染
     renderMarkmap(currentMarkdown);
