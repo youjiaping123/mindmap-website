@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,11 +21,31 @@
   <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
 </head>
 <body>
+  <!-- 粒子背景画布 -->
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- 通知容器 -->
+  <div id="toastContainer" class="toast-container"></div>
+
   <div class="app">
-    <!-- 历史记录按钮（固定在右上角） -->
-    <button class="history-toggle-btn" onclick="toggleHistoryPanel()" title="历史记录" aria-label="打开历史记录面板">
-      📜 历史记录
-    </button>
+    <!-- 顶部工具栏 -->
+    <nav class="topbar">
+      <div class="topbar-left">
+        <div class="logo" id="logoArea">
+          <span class="logo-icon">🧠</span>
+          <h1>MindForge<span class="logo-ai">AI</span></h1>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换主题" aria-label="切换深色/浅色主题">
+          <span class="theme-icon" id="themeIcon">☀️</span>
+        </button>
+        <button class="icon-btn history-btn" onclick="toggleHistoryPanel()" title="历史记录" aria-label="打开历史记录面板">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span class="btn-label">历史</span>
+        </button>
+      </div>
+    </nav>
 
     <!-- 历史记录遮罩 -->
     <div class="history-overlay" id="historyOverlay" onclick="toggleHistoryPanel()"></div>
@@ -33,12 +53,18 @@
     <!-- 历史记录侧边面板 -->
     <aside class="history-panel" id="historyPanel" aria-label="历史记录">
       <div class="history-panel-header">
-        <h2>📜 历史记录</h2>
-        <button class="history-close-btn" onclick="toggleHistoryPanel()" aria-label="关闭历史面板">✕</button>
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          历史记录
+        </h2>
+        <button class="history-close-btn" onclick="toggleHistoryPanel()" aria-label="关闭历史面板">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="history-panel-actions">
         <button class="history-clear-btn" id="historyClearBtn" onclick="clearAllHistory()" style="display:none;">
-          🗑️ 清空全部
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          清空全部
         </button>
       </div>
       <div class="history-panel-body">
@@ -51,78 +77,96 @@
       </div>
     </aside>
 
-    <!-- 顶部导航 -->
-    <header class="header">
-      <div class="logo">
-        <span class="logo-icon">🧠</span>
-        <h1>AI 思维导图生成器</h1>
+    <!-- Hero 区域 -->
+    <section class="hero" id="heroSection">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        AI Powered Mind Mapping
       </div>
-      <p class="subtitle">输入主题，AI 自动生成思维导图，支持在线预览、下载 Xmind 和 PNG</p>
-    </header>
+      <h2 class="hero-title">
+        用 AI 创造<br><span class="gradient-text">思维的无限可能</span>
+      </h2>
+      <p class="hero-desc">输入任意主题，AI 自动生成结构清晰的思维导图<br>支持在线预览、对话式修改、导出 Xmind 和 PNG</p>
+    </section>
 
     <!-- 输入区域 -->
     <section class="input-section">
-      <div class="model-select-group">
-        <label for="modelSelect">🤖 模型</label>
-        <select id="modelSelect">
-          <option value="">加载中...</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <input
-          type="text"
-          id="topicInput"
-          placeholder="输入思维导图主题，例如：人工智能、项目管理、健康饮食..."
-          maxlength="200"
-          autocomplete="off"
-        >
-        <button id="generateBtn" onclick="handleGenerate()">
-          <span class="btn-text">✨ 生成思维导图</span>
-          <span class="btn-loading" style="display:none;">
-            <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
-              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
-            </svg>
-            生成中...
-          </span>
-        </button>
-      </div>
-      <div id="errorMsg" class="error-msg" style="display:none;"></div>
-
-      <!-- 自定义提示词区域 -->
-      <div class="prompt-section">
-        <div class="preset-bar">
-          <span class="preset-label">🎯 风格预设</span>
-          <button class="preset-btn" data-preset="concise" onclick="applyPreset('concise')">
-            ⚡ 简洁模式
-            <span class="preset-desc">精炼扼要</span>
-          </button>
-          <button class="preset-btn" data-preset="detailed" onclick="applyPreset('detailed')">
-            📚 详尽模式
-            <span class="preset-desc">全面深入</span>
-          </button>
-          <button class="preset-btn" data-preset="creative" onclick="applyPreset('creative')">
-            🎨 创意模式
-            <span class="preset-desc">发散联想</span>
+      <div class="input-card glass-card">
+        <div class="model-select-group">
+          <div class="select-wrapper">
+            <span class="select-label">模型</span>
+            <select id="modelSelect">
+              <option value="">加载中...</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <div class="input-wrapper">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              type="text"
+              id="topicInput"
+              placeholder="输入思维导图主题，例如：人工智能、项目管理、健康饮食..."
+              maxlength="200"
+              autocomplete="off"
+            >
+          </div>
+          <button id="generateBtn" onclick="handleGenerate()">
+            <span class="btn-text">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              生成
+            </span>
+            <span class="btn-loading" style="display:none;">
+              <svg class="spinner" viewBox="0 0 24 24" width="18" height="18">
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+              </svg>
+              生成中...
+            </span>
           </button>
         </div>
-        <button class="prompt-toggle" id="promptToggle" onclick="togglePrompt()">
-          <span class="prompt-toggle-icon" id="promptToggleIcon">▶</span>
-          <span>📝 自定义提示词</span>
-          <span class="prompt-toggle-hint" id="promptToggleHint">（使用默认提示词）</span>
-        </button>
-        <div class="prompt-body" id="promptBody" style="display:none;">
-          <textarea
-            id="customPrompt"
-            class="prompt-textarea"
-            rows="8"
-            placeholder="输入自定义系统提示词，留空则使用默认提示词。&#10;&#10;默认提示词会指导 AI 生成 Markdown 标题格式的思维导图大纲。&#10;你可以自定义让 AI 按照你的需求生成内容，但请确保输出仍为 Markdown 标题格式以正确渲染思维导图。"
-          ></textarea>
-          <div class="prompt-actions">
-            <div class="prompt-actions-left">
-              <button class="prompt-action-btn" onclick="fillDefaultPrompt()">📋 查看默认提示词</button>
-              <button class="prompt-action-btn" onclick="resetPrompt()">🔄 清空</button>
+        <div id="errorMsg" class="error-msg" style="display:none;"></div>
+
+        <!-- 预设 & 自定义提示词 -->
+        <div class="prompt-section">
+          <div class="preset-bar">
+            <span class="preset-label">风格预设</span>
+            <div class="preset-chips">
+              <button class="preset-btn" data-preset="concise" onclick="applyPreset('concise')">
+                <span class="chip-emoji">⚡</span> 简洁
+              </button>
+              <button class="preset-btn" data-preset="detailed" onclick="applyPreset('detailed')">
+                <span class="chip-emoji">📚</span> 详尽
+              </button>
+              <button class="preset-btn" data-preset="creative" onclick="applyPreset('creative')">
+                <span class="chip-emoji">🎨</span> 创意
+              </button>
             </div>
-            <span class="prompt-char-count" id="promptCharCount">0 / 2000</span>
+          </div>
+          <button class="prompt-toggle" id="promptToggle" onclick="togglePrompt()">
+            <svg class="prompt-toggle-arrow" id="promptToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span>自定义提示词</span>
+            <span class="prompt-toggle-hint" id="promptToggleHint">使用默认</span>
+          </button>
+          <div class="prompt-body" id="promptBody" style="display:none;">
+            <textarea
+              id="customPrompt"
+              class="prompt-textarea"
+              rows="8"
+              placeholder="输入自定义系统提示词，留空则使用默认提示词。&#10;&#10;默认提示词会指导 AI 生成 Markdown 标题格式的思维导图大纲。&#10;你可以自定义让 AI 按照你的需求生成内容，但请确保输出仍为 Markdown 标题格式以正确渲染思维导图。"
+            ></textarea>
+            <div class="prompt-actions">
+              <div class="prompt-actions-left">
+                <button class="prompt-action-btn" onclick="fillDefaultPrompt()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  查看默认
+                </button>
+                <button class="prompt-action-btn" onclick="resetPrompt()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                  清空
+                </button>
+              </div>
+              <span class="prompt-char-count" id="promptCharCount">0 / 2000</span>
+            </div>
           </div>
         </div>
       </div>
@@ -131,33 +175,34 @@
     <!-- 工具栏 -->
     <section id="toolbar" class="toolbar" style="display:none;">
       <div class="toolbar-left">
-        <button class="tool-btn active" onclick="switchTab('preview')" id="tabPreview">
-          👁️ 预览
+        <button class="tab-btn active" onclick="switchTab('preview')" id="tabPreview">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          预览
         </button>
-        <button class="tool-btn" onclick="switchTab('markdown')" id="tabMarkdown">
-          📝 Markdown
+        <button class="tab-btn" onclick="switchTab('markdown')" id="tabMarkdown">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Markdown
         </button>
       </div>
       <div class="toolbar-right">
         <button class="export-btn xmind-btn" onclick="downloadXmind()">
-          📥 下载 .xmind
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .xmind
         </button>
         <button class="export-btn png-btn" onclick="downloadPng()">
-          🖼️ 下载 PNG
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          PNG
         </button>
       </div>
     </section>
 
     <!-- 内容区域 -->
     <section id="contentArea" class="content-area" style="display:none;">
-      <!-- 思维导图预览 -->
       <div id="previewPanel" class="panel preview-panel">
         <div id="markmapContainer" class="markmap-container">
           <svg id="markmapSvg"></svg>
         </div>
       </div>
-
-      <!-- Markdown 源码 -->
       <div id="markdownPanel" class="panel markdown-panel" style="display:none;">
         <pre id="markdownContent" class="markdown-content"></pre>
       </div>
@@ -169,12 +214,14 @@
         <div class="chat-header-left">
           <span class="chat-header-icon" aria-hidden="true">💬</span>
           <h3>对话修改</h3>
-          <span class="chat-header-hint">针对节点提问或要求展开，AI 会在原图基础上修改</span>
+          <span class="chat-header-hint">用自然语言修改思维导图</span>
         </div>
-        <button class="chat-clear-btn" onclick="clearChat()" title="清空对话">🗑️ 清空</button>
+        <button class="chat-clear-btn" onclick="clearChat()" title="清空对话">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          清空
+        </button>
       </div>
       <div class="chat-quick-bar">
-        <span class="chat-quick-label">快捷指令：</span>
         <button class="chat-quick-btn" onclick="useChatQuick('展开「」节点，增加更多子分支')">📂 展开节点</button>
         <button class="chat-quick-btn" onclick="useChatQuick('「」节点太简略了，请详细说明')">📝 详细说明</button>
         <button class="chat-quick-btn" onclick="useChatQuick('删除「」节点')">🗑️ 删除节点</button>
@@ -182,20 +229,18 @@
         <button class="chat-quick-btn" onclick="useChatQuick('把「」改名为「」')">✏️ 重命名</button>
       </div>
       <div class="chat-body" id="chatBody">
-        <div id="chatMessages" class="chat-messages">
-          <!-- 对话消息列表 -->
-        </div>
+        <div id="chatMessages" class="chat-messages"></div>
       </div>
       <div class="chat-input-bar">
         <textarea
           id="chatInput"
           class="chat-input"
-          placeholder="例如：展开「深度学习」节点、「机器学习」是什么意思、在「应用领域」下新增「自动驾驶」..."
+          placeholder="例如：展开「深度学习」节点、在「应用领域」下新增「自动驾驶」..."
           rows="1"
           maxlength="500"
         ></textarea>
         <button class="chat-send-btn" id="chatSendBtn" onclick="handleChat()">
-          发送
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
     </section>

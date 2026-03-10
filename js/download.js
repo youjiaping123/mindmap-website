@@ -9,6 +9,7 @@ async function downloadXmind() {
   try {
     const filename = AppState.currentTopic || 'mindmap';
     await XmindExport.download(AppState.currentMarkdown, filename);
+    showToast('Xmind 文件下载成功', 'success');
   } catch (error) {
     showError('下载 .xmind 失败: ' + error.message);
   }
@@ -26,6 +27,7 @@ async function downloadPng() {
       padding: 50,
       backgroundColor: '#ffffff',
     });
+    showToast('PNG 图片下载成功', 'success');
   } catch (error) {
     showError('导出 PNG 失败: ' + error.message);
   }

@@ -4,6 +4,12 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 初始化主题
+  applyTheme(getSavedTheme());
+
+  // 初始化粒子背景
+  initParticles();
+
   // 初始化模块
   loadModels();
   renderHistoryList();
@@ -38,5 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
     resizeTimer = setTimeout(() => {
       if (AppState.markmapInstance) AppState.markmapInstance.fit();
     }, 200);
+  });
+
+  // 页面加载完成后的入场动画
+  requestAnimationFrame(() => {
+    document.body.style.opacity = '1';
   });
 });

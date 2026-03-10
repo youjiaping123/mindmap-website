@@ -9,7 +9,11 @@ function togglePrompt() {
   const icon = $('promptToggleIcon');
   const isHidden = body.style.display === 'none';
   body.style.display = isHidden ? 'block' : 'none';
-  icon.textContent = isHidden ? '▼' : '▶';
+  if (isHidden) {
+    icon.classList.add('open');
+  } else {
+    icon.classList.remove('open');
+  }
 }
 
 /** 清空自定义提示词 */

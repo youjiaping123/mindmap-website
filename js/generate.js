@@ -51,6 +51,12 @@ async function handleGenerate() {
 
     $('markdownContent').textContent = AppState.currentMarkdown;
     switchTab('preview');
+
+    // 生成成功后缩小 hero 区域
+    const hero = $('heroSection');
+    if (hero) hero.style.display = 'none';
+
+    showToast('思维导图生成成功！', 'success');
   } catch (error) {
     showError(error.message);
   } finally {

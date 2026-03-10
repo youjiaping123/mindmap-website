@@ -57,6 +57,10 @@ function loadHistory(id) {
   $('chatSection').style.display = 'flex';
   clearChat();
 
+  // 隐藏 hero 区域
+  const hero = $('heroSection');
+  if (hero) hero.style.display = 'none';
+
   $('markdownContent').textContent = AppState.currentMarkdown;
   switchTab('preview');
 
