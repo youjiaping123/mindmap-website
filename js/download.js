@@ -33,19 +33,18 @@ async function downloadPng() {
   }
 }
 
-/** 下载高清 PDF（矢量，无限放大不模糊） */
+/** 下载矢量 PDF（通过浏览器打印功能，需用户选择 "另存为 PDF"） */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
   switchTab('preview');
   try {
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
-    showToast('正在生成高清 PDF...', 'info');
-    await PngExport.downloadPdf(svgEl, filename, {
+    showToast('即将打开打印对话框，请选择"另存为 PDF"即可导出矢量 PDF', 'info', 4000);
+    PngExport.downloadPdf(svgEl, filename, {
       padding: 50,
       backgroundColor: '#ffffff',
     });
-    showToast('高清 PDF 下载成功', 'success');
   } catch (error) {
     showError('导出 PDF 失败: ' + error.message);
   }

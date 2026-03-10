@@ -134,33 +134,32 @@ const PngExport = (() => {
   }
 
   /**
-   * 触发下载高清 PDF
-   * 使用 JPEG 压缩嵌入，兼顾清晰度和文件体积（~1MB vs 之前的 57MB）
+   * 触发下载矢量 PDF（利用浏览器原生打印功能）
+   * 原理：创建隐藏 iframe → 将 SVG 放入 → 用 @media print 精确控制尺寸
+   *      → 调用浏览器打印 → 用户在打印对话框选 "另存为 PDF"
+   * 优点：真正矢量、中文完美、字体自动嵌入、体积极小（~100-500KB）
    */
-  async function downloadPdf(svgElement, filename, options = {}) {
+  function downloadPdf(svgElement, filename, options = {}) {
     const {
-      scale = 6,          // 6x 足够清晰（≈216dpi），体积可控
       padding = 40,
       backgroundColor = '#ffffff',
-      jpegQuality = 0.92, // JPEG 压缩质量，0.92 接近无损
     } = options;
-
-    if (typeof window.jspdf === 'undefined') {
-      throw new Error('PDF 导出库未加载，请刷新页面重试');
-    }
 
     const bbox = svgElement.getBBox();
     const width = bbox.width + padding * 2;
     const height = bbox.height + padding * 2;
 
+    // 克隆 SVG 并设置精确尺寸
     const clonedSvg = svgElement.cloneNode(true);
     clonedSvg.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
-    clonedSvg.setAttribute('width', width * scale);
-    clonedSvg.setAttribute('height', height * scale);
+    clonedSvg.setAttribute('width', '100%');
+    clonedSvg.setAttribute('height', '100%');
+    clonedSvg.removeAttribute('id');
 
+    // 内联样式确保 iframe 中显示正确
     inlineStyles(svgElement, clonedSvg);
 
-    // 白色背景
+    // 添加白色背景
     const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bgRect.setAttribute('x', bbox.x - padding);
     bgRect.setAttribute('y', bbox.y - padding);
@@ -169,42 +168,122 @@ const PngExport = (() => {
     bgRect.setAttribute('fill', backgroundColor);
     clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
 
-    // SVG → Canvas → JPEG data URL（关键：用 JPEG 替代 PNG，体积降低 90%+）
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(clonedSvg);
-    const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+    // 收集页面上 markmap 相关的 CSS（包括内嵌在 SVG 中的 <style>）
+    let cssText = '';
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            if (rule.cssText && (
+              rule.cssText.includes('markmap') ||
+              rule.cssText.includes('.markmap')
+            )) {
+              cssText += rule.cssText + '\n';
+            }
+          }
+        } catch (_) { /* cross-origin stylesheet, skip */ }
+      }
+    } catch (_) {}
 
-    const imgDataUrl = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', jpegQuality));
-      };
-      img.onerror = () => reject(new Error('Failed to render SVG for PDF'));
-      img.src = svgDataUrl;
-    });
+    // 收集 SVG 内部 <style> 标签
+    const internalStyles = svgElement.querySelectorAll('style');
+    internalStyles.forEach(s => { cssText += s.textContent + '\n'; });
 
-    // 嵌入 PDF
-    const PX_TO_MM = 0.264583;
-    const pdfWidth = width * PX_TO_MM;
-    const pdfHeight = height * PX_TO_MM;
-    const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+    // 将 mm 转为精确页面尺寸（用 mm 单位保证打印精度）
+    const widthMM = (width * 0.264583).toFixed(2);
+    const heightMM = (height * 0.264583).toFixed(2);
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation,
-      unit: 'mm',
-      format: [pdfWidth, pdfHeight],
-    });
+    const svgString = new XMLSerializer().serializeToString(clonedSvg);
 
-    doc.addImage(imgDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-    doc.save(`${filename}.pdf`);
+    // 构建打印页面 HTML
+    const printHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${filename || 'mindmap'}</title>
+  <style>
+    /* 收集到的 markmap 样式 */
+    ${cssText}
+
+    /* 打印专用样式 */
+    @page {
+      size: ${widthMM}mm ${heightMM}mm;
+      margin: 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: ${widthMM}mm;
+      height: ${heightMM}mm;
+      overflow: hidden;
+      background: ${backgroundColor};
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* 确保打印时颜色正确 */
+    @media print {
+      html, body {
+        width: ${widthMM}mm;
+        height: ${heightMM}mm;
+        background: ${backgroundColor} !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  ${svgString}
+</body>
+</html>`;
+
+    // 创建隐藏 iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-99999px;top:-99999px;width:0;height:0;border:none;';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(printHTML);
+    iframeDoc.close();
+
+    // 等待 iframe 渲染完毕再触发打印
+    iframe.contentWindow.onafterprint = () => {
+      // 打印完成后清理 iframe
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 500);
+    };
+
+    // 给浏览器一点时间渲染 iframe 内容
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      // 如果 onafterprint 不触发（某些浏览器），5秒后兜底清理
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+        }
+      }, 5000);
+    }, 300);
   }
 
   return { download, downloadPdf, svgToPngBlob };
