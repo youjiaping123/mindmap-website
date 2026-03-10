@@ -61,6 +61,21 @@
 
       <!-- 自定义提示词区域 -->
       <div class="prompt-section">
+        <div class="preset-bar">
+          <span class="preset-label">🎯 风格预设</span>
+          <button class="preset-btn" data-preset="concise" onclick="applyPreset('concise')">
+            ⚡ 简洁模式
+            <span class="preset-desc">精炼扼要</span>
+          </button>
+          <button class="preset-btn" data-preset="detailed" onclick="applyPreset('detailed')">
+            📚 详尽模式
+            <span class="preset-desc">全面深入</span>
+          </button>
+          <button class="preset-btn" data-preset="creative" onclick="applyPreset('creative')">
+            🎨 创意模式
+            <span class="preset-desc">发散联想</span>
+          </button>
+        </div>
         <button class="prompt-toggle" id="promptToggle" onclick="togglePrompt()">
           <span class="prompt-toggle-icon" id="promptToggleIcon">▶</span>
           <span>📝 自定义提示词</span>

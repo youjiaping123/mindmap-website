@@ -194,6 +194,62 @@ body {
   margin-top: 12px;
 }
 
+/* Preset Bar */
+.preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.preset-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.preset-btn.active {
+  color: white;
+  background: linear-gradient(135deg, var(--primary), #a855f7);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.preset-btn.active .preset-desc {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
 .prompt-toggle {
   display: flex;
   align-items: center;
@@ -462,6 +518,19 @@ body {
 
   .model-select-group select {
     max-width: 100%;
+  }
+
+  .preset-bar {
+    gap: 6px;
+  }
+
+  .preset-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .preset-desc {
+    display: none;
   }
 
   .prompt-textarea {
