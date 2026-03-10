@@ -1,9 +1,25 @@
 /**
- * 对话式修改思维导图
+ * 对话式修改思维导图（流式 + 闲聊双模式）
  * 依赖: state.js, utils.js, ui.js, markmap.js, markdown-engine.js
  */
 
-/** 发送对话消息，局部修改思维导图 */
+/**
+ * 解析 SSE 数据行，提取 content delta
+ */
+function parseChatSSEDelta(line) {
+  if (!line.startsWith('data: ')) return null;
+  const payload = line.slice(6).trim();
+  if (payload === '[DONE]') return { done: true };
+  try {
+    const json = JSON.parse(payload);
+    const content = json?.choices?.[0]?.delta?.content;
+    return content != null ? { content } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 发送对话消息（流式） */
 async function handleChat() {
   const input = $('chatInput');
   const message = input.value.trim();
@@ -24,7 +40,13 @@ async function handleChat() {
   input.style.height = 'auto';
 
   setChatLoading(true);
-  const thinkingId = appendChatMessage('assistant', '思考中...');
+
+  // 创建一个空的 assistant 气泡，后续流式填充
+  const assistantMsgId = appendChatMessage('assistant', '');
+  const bubbleEl = document.querySelector(`#${assistantMsgId} .chat-msg-bubble`);
+  if (bubbleEl) bubbleEl.classList.add('chat-msg-thinking');
+
+  let fullResponse = '';
 
   try {
     const selectedModel = $('modelSelect').value || '';
@@ -37,45 +59,128 @@ async function handleChat() {
         message,
         model: selectedModel,
         history: AppState.chatHistory.slice(-6),
-        isFirstTurn: AppState.isFirstChatTurn,
       }),
     });
 
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || '修改失败，请重试');
+    if (!response.ok) {
+      let errMsg = '修改失败，请重试';
+      try {
+        const errData = await response.json();
+        errMsg = errData.error || errMsg;
+      } catch {}
+      throw new Error(errMsg);
     }
 
-    removeChatMessage(thinkingId);
+    // 流式读取 SSE
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    if (data.mode === 'patch' && Array.isArray(data.operations)) {
+    if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        const delta = parseChatSSEDelta(trimmed);
+        if (!delta) continue;
+        if (delta.done) break;
+        if (delta.content) {
+          fullResponse += delta.content;
+          // 流式更新气泡内容
+          if (bubbleEl) {
+            // 如果看起来是 JSON 操作指令，显示处理中提示
+            if (fullResponse.trimStart().startsWith('[')) {
+              bubbleEl.textContent = '🔧 正在生成修改指令...';
+            } else {
+              bubbleEl.textContent = fullResponse;
+            }
+            // 自动滚动
+            const body = $('chatBody');
+            if (body) body.scrollTop = body.scrollHeight;
+          }
+        }
+      }
+    }
+
+    fullResponse = fullResponse.trim();
+
+    if (!fullResponse) {
+      if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回了空结果，请重试';
+      return;
+    }
+
+    // 判断模式：以 [ 开头视为操作指令，否则视为闲聊
+    if (fullResponse.startsWith('[')) {
+      // === 操作指令模式 ===
+      let raw = fullResponse;
+      // 清理可能的代码块包裹
+      raw = raw.replace(/^[\s\S]*?```[\w]*\n?/, '').replace(/\n?```[\s\S]*$/, '');
+      if (!raw.trim().startsWith('[')) {
+        const jsonMatch = raw.match(/\[[\s\S]*\]/);
+        if (jsonMatch) raw = jsonMatch[0];
+      }
+      raw = raw.trim();
+
+      let operations;
+      try {
+        operations = JSON.parse(raw);
+        if (!Array.isArray(operations)) operations = [operations];
+      } catch {
+        if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回格式异常，请重试';
+        return;
+      }
+
+      // 空数组
+      if (operations.length === 0) {
+        if (bubbleEl) bubbleEl.textContent = '🤔 没有识别到需要修改的内容，请描述具体要修改哪个节点。';
+        AppState.chatHistory.push({ role: 'user', content: message });
+        AppState.chatHistory.push({ role: 'assistant', content: '没有识别到修改指令' });
+        return;
+      }
+
       // 保存撤销快照
       AppState.markdownUndoStack.push(AppState.currentMarkdown);
       if (AppState.markdownUndoStack.length > AppState.maxUndoSize) {
         AppState.markdownUndoStack.shift();
       }
+      AppState.markdownRedoStack = [];
 
-      const result = applyOperations(AppState.currentMarkdown, data.operations);
+      const result = applyOperations(AppState.currentMarkdown, operations);
 
       AppState.chatHistory.push({ role: 'user', content: message });
       AppState.chatHistory.push({ role: 'assistant', content: result.summary.join('; ') });
 
       AppState.currentMarkdown = result.markdown;
-      AppState.isFirstChatTurn = false;
-      appendChatMessage('assistant', result.summary.join('\n'));
-      updateUndoButton();
-    } else if (data.mode === 'fallback') {
-      appendChatMessage('assistant', `⚠️ ${data.description || 'AI 返回格式异常，请重试'}`);
-      return;
+
+      // 更新气泡为操作摘要
+      if (bubbleEl) bubbleEl.textContent = result.summary.join('\n');
+      updateUndoRedoButtons();
+
+      renderMarkmap(AppState.currentMarkdown);
+      $('markdownContent').textContent = AppState.currentMarkdown;
+      switchTab('preview');
+
+    } else {
+      // === 闲聊模式 ===
+      // 气泡内容已经流式更新好了，只需保存历史
+      AppState.chatHistory.push({ role: 'user', content: message });
+      AppState.chatHistory.push({ role: 'assistant', content: fullResponse });
     }
 
-    renderMarkmap(AppState.currentMarkdown);
-    $('markdownContent').textContent = AppState.currentMarkdown;
-    switchTab('preview');
   } catch (error) {
-    removeChatMessage(thinkingId);
-    appendChatMessage('assistant', `❌ ${error.message}`);
+    if (bubbleEl) {
+      bubbleEl.classList.remove('chat-msg-thinking');
+      bubbleEl.textContent = `❌ ${error.message}`;
+    }
   } finally {
     setChatLoading(false);
   }
@@ -123,10 +228,10 @@ function setChatLoading(loading) {
 function clearChat() {
   AppState.chatHistory = [];
   AppState.markdownUndoStack = [];
-  AppState.isFirstChatTurn = true;
+  AppState.markdownRedoStack = [];
   const list = $('chatMessages');
   if (list) list.innerHTML = '';
-  updateUndoButton();
+  updateUndoRedoButtons();
 }
 
 /** 使用快捷指令 */
@@ -142,15 +247,34 @@ function useChatQuick(text) {
 function undoChat() {
   if (AppState.markdownUndoStack.length === 0) return;
 
+  // 当前状态存入重做栈
+  AppState.markdownRedoStack.push(AppState.currentMarkdown);
+
   AppState.currentMarkdown = AppState.markdownUndoStack.pop();
   renderMarkmap(AppState.currentMarkdown);
   $('markdownContent').textContent = AppState.currentMarkdown;
   appendChatMessage('assistant', '↩️ 已撤销上一步修改');
-  updateUndoButton();
+  updateUndoRedoButtons();
 }
 
-/** 更新撤销按钮的可用状态 */
-function updateUndoButton() {
-  const btn = $('chatUndoBtn');
-  if (btn) btn.disabled = AppState.markdownUndoStack.length === 0;
+/** 重做（回退撤销） */
+function redoChat() {
+  if (AppState.markdownRedoStack.length === 0) return;
+
+  // 当前状态存入撤销栈
+  AppState.markdownUndoStack.push(AppState.currentMarkdown);
+
+  AppState.currentMarkdown = AppState.markdownRedoStack.pop();
+  renderMarkmap(AppState.currentMarkdown);
+  $('markdownContent').textContent = AppState.currentMarkdown;
+  appendChatMessage('assistant', '↪️ 已重做修改');
+  updateUndoRedoButtons();
+}
+
+/** 更新撤销/重做按钮的可用状态 */
+function updateUndoRedoButtons() {
+  const undoBtn = $('chatUndoBtn');
+  const redoBtn = $('chatRedoBtn');
+  if (undoBtn) undoBtn.disabled = AppState.markdownUndoStack.length === 0;
+  if (redoBtn) redoBtn.disabled = AppState.markdownRedoStack.length === 0;
 }
