@@ -33,23 +33,6 @@ async function downloadPng() {
   }
 }
 
-/** 下载 SVG 矢量图 */
-function downloadSvg() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
-  switchTab('preview');
-  try {
-    const svgEl = $('markmapSvg');
-    const filename = AppState.currentTopic || 'mindmap';
-    PngExport.downloadSvg(svgEl, filename, {
-      padding: 50,
-      backgroundColor: '#ffffff',
-    });
-    showToast('SVG 矢量图下载成功', 'success');
-  } catch (error) {
-    showError('导出 SVG 失败: ' + error.message);
-  }
-}
-
 /** 下载高清 PDF（矢量，无限放大不模糊） */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
