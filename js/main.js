@@ -46,6 +46,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
   });
 
+  // 全屏切换时更新图标 & refit markmap
+  document.addEventListener('fullscreenchange', _onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', _onFullscreenChange);
+
+  function _onFullscreenChange() {
+    _updateFullscreenIcon();
+    // 延迟 refit，等 DOM 布局完成
+    setTimeout(() => {
+      if (AppState.markmapInstance) AppState.markmapInstance.fit();
+    }, 150);
+  }
+
   // 页面加载完成后的入场动画
   requestAnimationFrame(() => {
     document.body.style.opacity = '1';

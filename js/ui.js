@@ -56,6 +56,44 @@ function switchTab(tab) {
   }
 }
 
+/* ===== 全屏切换 ===== */
+
+/** 切换预览面板全屏 */
+function toggleFullscreen() {
+  const panel = $('previewPanel');
+  if (!panel) return;
+
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (!isFullscreen) {
+    const req = panel.requestFullscreen || panel.webkitRequestFullscreen;
+    if (req) req.call(panel);
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+  }
+}
+
+/** 更新全屏按钮图标 */
+function _updateFullscreenIcon() {
+  const icon = $('fullscreenIcon');
+  if (!icon) return;
+
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (isFullscreen) {
+    // 缩小图标（退出全屏）
+    icon.innerHTML =
+      '<path d="M8 3v3a2 2 0 0 1-2 2H3m18-5v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3m18 5v-3a2 2 0 0 1 2-2h3" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
+  } else {
+    // 放大图标（进入全屏）
+    icon.innerHTML =
+      '<path d="M8 3H5a2 2 0 0 0-2 2v3m18-5h-3a2 2 0 0 0-2 2v3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
+  }
+}
+
 /* ===== 主题切换 ===== */
 
 /** 获取保存的主题或系统偏好 */

@@ -864,16 +864,87 @@ body {
   position: relative;
 }
 
+/* 思维导图画布始终使用浅色背景，确保可见性 */
 .markmap-container {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  min-height: 65vh;
+  background: #ffffff;
+  border-radius: var(--radius);
+  transition: background var(--transition);
+}
+
+[data-theme="dark"] .markmap-container {
+  background: #f0f2f5;
 }
 
 #markmapSvg {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  min-height: 65vh;
+}
+
+/* 全屏按钮 */
+.fullscreen-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 11;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all var(--transition);
+  backdrop-filter: blur(8px);
+}
+
+.fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #334155;
+  transform: scale(1.05);
+}
+
+.fullscreen-btn svg {
+  pointer-events: none;
+}
+
+/* 全屏模式下的样式 */
+.preview-panel:fullscreen,
+.preview-panel:-webkit-full-screen {
+  background: #ffffff;
+  border-radius: 0;
+  padding: 0;
+}
+
+.preview-panel:fullscreen .markmap-container,
+.preview-panel:-webkit-full-screen .markmap-container {
+  min-height: 100vh;
+  border-radius: 0;
+}
+
+.preview-panel:fullscreen #markmapSvg,
+.preview-panel:-webkit-full-screen #markmapSvg {
+  min-height: 100vh;
+}
+
+.preview-panel:fullscreen .fullscreen-btn,
+.preview-panel:-webkit-full-screen .fullscreen-btn {
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+}
+
+.preview-panel:fullscreen .mm-toolbar,
+.preview-panel:-webkit-full-screen .mm-toolbar {
+  bottom: 20px;
+  right: 20px;
 }
 
 /* Markdown Panel */
@@ -1452,7 +1523,7 @@ body {
   }
 
   .markmap-container, #markmapSvg {
-    min-height: 350px;
+    min-height: 50vh;
   }
 
   .chat-section {
@@ -1500,10 +1571,6 @@ body {
   bottom: 12px;
   right: 12px;
   z-index: 10;
-}
-
-[data-theme="dark"] .mm-toolbar {
-  filter: invert(1) hue-rotate(180deg);
 }
 
 /* ------------------------------------
