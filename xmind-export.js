@@ -2,10 +2,11 @@
  * .xmind 文件导出模块
  *
  * .xmind 文件格式 = ZIP 压缩包，包含:
- *   - content.json  (思维导图数据)
- *   - metadata.json (元信息)
+ *   - content.json          (思维导图数据)
+ *   - metadata.json         (元信息)
+ *   - META-INF/manifest.json (清单文件 — Xmind Zen/2020+ 必需)
  *
- * Xmind Zen / Xmind 2020+ 使用的 JSON 格式
+ * 兼容 Xmind Zen / Xmind 2020+ / Xmind 2024 的 JSON 格式
  */
 
 const XmindExport = (() => {
@@ -24,40 +25,73 @@ const XmindExport = (() => {
 
   /**
    * 解析 Markdown 标题为树形结构
-   * 支持 # ## ### ####
+   * 支持 # ~ ###### 标题格式，以及混合列表格式 (- 开头)
    */
   function parseMarkdownToTree(markdown) {
-    const lines = markdown.split('\n').filter(line => line.trim().startsWith('#'));
+    const lines = markdown.split('\n');
 
     if (lines.length === 0) {
       return { title: 'Mindmap', children: [] };
     }
 
-    // 构建树
     const root = { title: '', children: [] };
     const stack = [{ node: root, level: 0 }];
 
-    for (const line of lines) {
-      const match = line.match(/^(#{1,6})\s+(.+)$/);
-      if (!match) continue;
+    // 记录上一个标题的级别，用于处理列表项
+    let lastHeadingLevel = 0;
 
-      const level = match[1].length;
-      const title = match[2].trim();
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      if (!line.trim()) continue;
 
-      const newNode = { title, children: [] };
+      // 匹配 Markdown 标题 (# ~ ######)
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const title = headingMatch[2].trim();
+        lastHeadingLevel = level;
 
-      // 找到合适的父节点
-      while (stack.length > 1 && stack[stack.length - 1].level >= level) {
-        stack.pop();
+        const newNode = { title, children: [] };
+
+        // 找到合适的父节点
+        while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+          stack.pop();
+        }
+
+        stack[stack.length - 1].node.children.push(newNode);
+        stack.push({ node: newNode, level });
+        continue;
       }
 
-      stack[stack.length - 1].node.children.push(newNode);
-      stack.push({ node: newNode, level });
+      // 匹配列表项 (- 或 * 开头，可带缩进)
+      const listMatch = line.match(/^(\s*)[*\-+]\s+(.+)$/);
+      if (listMatch) {
+        const indent = listMatch[1].length;
+        const title = listMatch[2].trim();
+
+        // 列表项的级别 = 上一个标题级别 + 1 + 缩进级别
+        const indentLevel = Math.floor(indent / 2);
+        const level = lastHeadingLevel + 1 + indentLevel;
+
+        const newNode = { title, children: [] };
+
+        while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+          stack.pop();
+        }
+
+        stack[stack.length - 1].node.children.push(newNode);
+        stack.push({ node: newNode, level });
+        continue;
+      }
     }
 
     // 如果只有一个顶级子节点，直接作为根
     if (root.children.length === 1) {
       return root.children[0];
+    }
+
+    if (root.children.length === 0) {
+      return { title: 'Mindmap', children: [] };
     }
 
     root.title = 'Mindmap';
@@ -71,7 +105,8 @@ const XmindExport = (() => {
     const topic = {
       id: generateId(),
       class: 'topic',
-      title: node.title,
+      title: node.title || '',
+      titleUnedited: true,
     };
 
     if (isRoot) {
@@ -88,7 +123,7 @@ const XmindExport = (() => {
   }
 
   /**
-   * 生成 content.json
+   * 生成 content.json — Xmind Zen/2020+ 格式
    */
   function generateContentJson(tree) {
     const rootTopic = treeToXmindTopic(tree, true);
@@ -98,6 +133,7 @@ const XmindExport = (() => {
       class: 'sheet',
       title: tree.title || 'Sheet 1',
       rootTopic: rootTopic,
+      topicPositioning: 'fixed',
     }];
   }
 
@@ -107,14 +143,15 @@ const XmindExport = (() => {
   function generateMetadataJson() {
     return {
       creator: {
-        name: 'Vana',
-        version: '13.0.0',
+        name: 'Xmind',
+        version: '24.04.10311',
       },
+      activeSheetId: null,
     };
   }
 
   /**
-   * 生成 manifest.json (Xmind 必需)
+   * 生成 META-INF/manifest.json (Xmind 新版必需位置)
    */
   function generateManifestJson() {
     return {
@@ -139,11 +176,12 @@ const XmindExport = (() => {
     const zip = new JSZip();
     zip.file('content.json', JSON.stringify(contentJson));
     zip.file('metadata.json', JSON.stringify(metadataJson));
-    zip.file('manifest.json', JSON.stringify(manifestJson));
+    // manifest.json 必须放在 META-INF/ 目录下，否则 Xmind 会识别为旧版格式
+    zip.file('META-INF/manifest.json', JSON.stringify(manifestJson));
 
     const blob = await zip.generateAsync({
       type: 'blob',
-      mimeType: 'application/zip',
+      mimeType: 'application/x-xmind',
     });
 
     return blob;

@@ -286,6 +286,16 @@ body {
   margin-left: 2px;
 }
 
+.logo-version {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 6px;
+  vertical-align: super;
+  letter-spacing: 0;
+  opacity: 0.6;
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
