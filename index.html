@@ -163,6 +163,43 @@
       </div>
     </section>
 
+    <!-- 对话式修改区域 -->
+    <section id="chatSection" class="chat-section" style="display:none;">
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <span class="chat-header-icon">💬</span>
+          <h3>对话修改</h3>
+          <span class="chat-header-hint">针对节点提问或要求展开，AI 会在原图基础上修改</span>
+        </div>
+        <button class="chat-clear-btn" onclick="clearChat()" title="清空对话">🗑️ 清空</button>
+      </div>
+      <div class="chat-quick-bar">
+        <span class="chat-quick-label">快捷指令：</span>
+        <button class="chat-quick-btn" onclick="useChatQuick('展开「」节点，增加更多子分支')">📂 展开节点</button>
+        <button class="chat-quick-btn" onclick="useChatQuick('「」节点太简略了，请详细说明')">📝 详细说明</button>
+        <button class="chat-quick-btn" onclick="useChatQuick('删除「」节点')">🗑️ 删除节点</button>
+        <button class="chat-quick-btn" onclick="useChatQuick('在「」下面新增一个「」子节点')">➕ 新增节点</button>
+        <button class="chat-quick-btn" onclick="useChatQuick('把「」改名为「」')">✏️ 重命名</button>
+      </div>
+      <div class="chat-body" id="chatBody">
+        <div id="chatMessages" class="chat-messages">
+          <!-- 对话消息列表 -->
+        </div>
+      </div>
+      <div class="chat-input-bar">
+        <textarea
+          id="chatInput"
+          class="chat-input"
+          placeholder="例如：展开「深度学习」节点、「机器学习」是什么意思、在「应用领域」下新增「自动驾驶」..."
+          rows="1"
+          maxlength="500"
+        ></textarea>
+        <button class="chat-send-btn" id="chatSendBtn" onclick="handleChat()">
+          发送
+        </button>
+      </div>
+    </section>
+
     <!-- 底部 -->
     <footer class="footer">
       <p>Powered by <a href="https://openai.com" target="_blank">OpenAI</a> + <a href="https://markmap.js.org" target="_blank">Markmap</a></p>

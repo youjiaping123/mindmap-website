@@ -89,6 +89,10 @@ function loadHistory(id) {
   document.getElementById('toolbar').style.display = 'flex';
   document.getElementById('contentArea').style.display = 'flex';
 
+  // 显示对话区域并清空上一次对话
+  document.getElementById('chatSection').style.display = 'flex';
+  clearChat();
+
   // 显示 Markdown 源码
   document.getElementById('markdownContent').textContent = currentMarkdown;
 
@@ -1257,6 +1261,10 @@ async function handleGenerate() {
     document.getElementById('toolbar').style.display = 'flex';
     document.getElementById('contentArea').style.display = 'flex';
 
+    // 显示对话区域并清空上一次对话
+    document.getElementById('chatSection').style.display = 'flex';
+    clearChat();
+
     // 显示 Markdown 源码
     document.getElementById('markdownContent').textContent = currentMarkdown;
 
@@ -1403,6 +1411,154 @@ async function downloadPng() {
 }
 
 // ============================
+// 对话式修改思维导图
+// ============================
+
+let chatHistory = []; // 对话历史 [{role, content}]
+let chatLoading = false;
+
+/**
+ * 发送对话消息，修改思维导图
+ */
+async function handleChat() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+
+  if (!message) return;
+  if (!currentMarkdown) {
+    showError('请先生成一个思维导图，再使用对话功能');
+    return;
+  }
+  if (chatLoading) return;
+
+  // 添加用户消息到界面
+  appendChatMessage('user', message);
+  input.value = '';
+  input.style.height = 'auto';
+
+  // 进入加载状态
+  setChatLoading(true);
+  const thinkingId = appendChatMessage('assistant', '思考中...');
+
+  try {
+    const modelSelect = document.getElementById('modelSelect');
+    const selectedModel = modelSelect.value || '';
+
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currentMarkdown: currentMarkdown,
+        message: message,
+        model: selectedModel,
+        history: chatHistory.slice(-10), // 最近 10 轮
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || '修改失败，请重试');
+    }
+
+    // 移除"思考中"
+    removeChatMessage(thinkingId);
+
+    // 保存对话历史
+    chatHistory.push({ role: 'user', content: `当前思维导图:\n${currentMarkdown}\n\n修改要求: ${message}` });
+    chatHistory.push({ role: 'assistant', content: data.markdown });
+
+    // 更新 markdown
+    currentMarkdown = data.markdown;
+
+    // 添加 AI 回复
+    appendChatMessage('assistant', '✅ 已更新思维导图');
+
+    // 重新渲染
+    renderMarkmap(currentMarkdown);
+    document.getElementById('markdownContent').textContent = currentMarkdown;
+
+    // 确保在预览 tab
+    switchTab('preview');
+
+  } catch (error) {
+    removeChatMessage(thinkingId);
+    appendChatMessage('assistant', `❌ ${error.message}`);
+  } finally {
+    setChatLoading(false);
+  }
+}
+
+/**
+ * 追加一条聊天消息到界面
+ */
+function appendChatMessage(role, content) {
+  const list = document.getElementById('chatMessages');
+  if (!list) return null;
+
+  const id = 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-msg-${role}`;
+  div.id = id;
+
+  const isThinking = (role === 'assistant' && content === '思考中...');
+
+  div.innerHTML = `
+    <div class="chat-msg-avatar">${role === 'user' ? '👤' : '🤖'}</div>
+    <div class="chat-msg-bubble ${isThinking ? 'chat-msg-thinking' : ''}">
+      ${escapeHtml(content)}
+    </div>
+  `;
+
+  list.appendChild(div);
+
+  // 滚动到底部
+  const body = document.getElementById('chatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+
+  return id;
+}
+
+/**
+ * 移除一条聊天消息
+ */
+function removeChatMessage(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+/**
+ * 设置对话加载状态
+ */
+function setChatLoading(loading) {
+  chatLoading = loading;
+  const btn = document.getElementById('chatSendBtn');
+  const input = document.getElementById('chatInput');
+  if (btn) btn.disabled = loading;
+  if (input) input.disabled = loading;
+}
+
+/**
+ * 清空对话记录
+ */
+function clearChat() {
+  chatHistory = [];
+  const list = document.getElementById('chatMessages');
+  if (list) list.innerHTML = '';
+}
+
+/**
+ * 使用快捷指令
+ */
+function useChatQuick(text) {
+  const input = document.getElementById('chatInput');
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+}
+
+// ============================
 // UI 工具函数
 // ============================
 
@@ -1435,6 +1591,20 @@ document.getElementById('topicInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) {
     handleGenerate();
   }
+});
+
+// 对话输入框事件
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    handleChat();
+  }
+});
+
+// 对话输入框自动调整高度
+document.getElementById('chatInput').addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
 });
 
 // 窗口 resize 时重新 fit markmap
