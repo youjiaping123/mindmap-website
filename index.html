@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 思维导图生成器</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- markmap 依赖 -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.18.12/dist/browser/index.iife.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.18.12/dist/browser/index.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.18.12/dist/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.18.12/dist/index.js"></script>
+
+  <!-- JSZip for .xmind export -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <!-- html-to-image for PNG export -->
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- 顶部导航 -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🧠</span>
+        <h1>AI 思维导图生成器</h1>
+      </div>
+      <p class="subtitle">输入主题，AI 自动生成思维导图，支持在线预览、下载 Xmind 和 PNG</p>
+    </header>
+
+    <!-- 输入区域 -->
+    <section class="input-section">
+      <div class="input-group">
+        <input
+          type="text"
+          id="topicInput"
+          placeholder="输入思维导图主题，例如：人工智能、项目管理、健康饮食..."
+          maxlength="200"
+          autocomplete="off"
+        >
+        <button id="generateBtn" onclick="handleGenerate()">
+          <span class="btn-text">✨ 生成思维导图</span>
+          <span class="btn-loading" style="display:none;">
+            <svg class="spinner" viewBox="0 0 24 24" width="20" height="20">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+            </svg>
+            生成中...
+          </span>
+        </button>
+      </div>
+      <div id="errorMsg" class="error-msg" style="display:none;"></div>
+    </section>
+
+    <!-- 工具栏 -->
+    <section id="toolbar" class="toolbar" style="display:none;">
+      <div class="toolbar-left">
+        <button class="tool-btn active" onclick="switchTab('preview')" id="tabPreview">
+          👁️ 预览
+        </button>
+        <button class="tool-btn" onclick="switchTab('markdown')" id="tabMarkdown">
+          📝 Markdown
+        </button>
+      </div>
+      <div class="toolbar-right">
+        <button class="export-btn xmind-btn" onclick="downloadXmind()">
+          📥 下载 .xmind
+        </button>
+        <button class="export-btn png-btn" onclick="downloadPng()">
+          🖼️ 下载 PNG
+        </button>
+      </div>
+    </section>
+
+    <!-- 内容区域 -->
+    <section id="contentArea" class="content-area" style="display:none;">
+      <!-- 思维导图预览 -->
+      <div id="previewPanel" class="panel preview-panel">
+        <div id="markmapContainer" class="markmap-container">
+          <svg id="markmapSvg"></svg>
+        </div>
+      </div>
+
+      <!-- Markdown 源码 -->
+      <div id="markdownPanel" class="panel markdown-panel" style="display:none;">
+        <pre id="markdownContent" class="markdown-content"></pre>
+      </div>
+    </section>
+
+    <!-- 底部 -->
+    <footer class="footer">
+      <p>Powered by <a href="https://openai.com" target="_blank">OpenAI</a> + <a href="https://markmap.js.org" target="_blank">Markmap</a></p>
+    </footer>
+  </div>
+
+  <script src="xmind-export.js"></script>
+  <script src="png-export.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

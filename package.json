@@ -1,0 +1,11 @@
+{
+  "name": "mindmap-generator",
+  "version": "1.0.0",
+  "description": "AI 思维导图生成器 - 输入主题，在线预览并下载 Xmind 和 PNG",
+  "private": true,
+  "scripts": {
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
