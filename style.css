@@ -855,6 +855,14 @@ body {
   box-shadow: 0 6px 20px var(--primary-glow);
 }
 
+.pdf-btn {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.pdf-btn:hover {
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.35);
+}
+
 /* ------------------------------------
    9. 内容区域
    ------------------------------------ */
@@ -1635,6 +1643,12 @@ body.fake-fullscreen-active {
 
   .toolbar-left, .toolbar-right {
     justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .export-btn {
+    padding: 8px 12px;
+    font-size: 12px;
   }
 
   .markmap-container, #markmapSvg {
@@ -1649,9 +1663,31 @@ body.fake-fullscreen-active {
     display: none;
   }
 
+  .chat-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .chat-header-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .chat-model-select {
     max-width: 110px;
     font-size: 10px;
+  }
+
+  .chat-clear-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    gap: 3px;
+  }
+
+  .chat-clear-btn svg {
+    width: 12px;
+    height: 12px;
   }
 
   .chat-quick-bar {

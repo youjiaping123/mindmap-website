@@ -23,7 +23,7 @@ async function downloadPng() {
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
     await PngExport.download(svgEl, filename, {
-      scale: 4,
+      scale: 8,
       padding: 50,
       backgroundColor: '#ffffff',
     });
@@ -47,5 +47,23 @@ function downloadSvg() {
     showToast('SVG 矢量图下载成功', 'success');
   } catch (error) {
     showError('导出 SVG 失败: ' + error.message);
+  }
+}
+
+/** 下载高清 PDF（矢量，无限放大不模糊） */
+async function downloadPdf() {
+  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  switchTab('preview');
+  try {
+    const svgEl = $('markmapSvg');
+    const filename = AppState.currentTopic || 'mindmap';
+    showToast('正在生成高清 PDF...', 'info');
+    await PngExport.downloadPdf(svgEl, filename, {
+      padding: 50,
+      backgroundColor: '#ffffff',
+    });
+    showToast('高清 PDF 下载成功', 'success');
+  } catch (error) {
+    showError('导出 PDF 失败: ' + error.message);
   }
 }
