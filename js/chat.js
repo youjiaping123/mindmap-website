@@ -19,6 +19,56 @@ function parseChatSSEDelta(line) {
   }
 }
 
+/**
+ * 判断流式累积的文本是否看起来像 JSON 操作指令
+ * 用于流式阶段决定显示"正在生成修改指令"还是直接显示文字
+ */
+function looksLikeJSON(text) {
+  const trimmed = text.trim();
+  // 直接以 [ 开头
+  if (trimmed.startsWith('[')) return true;
+  // 被代码块包裹：```json\n[...
+  if (/```[\w]*\s*\[/.test(trimmed)) return true;
+  // 含有明显的操作指令特征
+  if (/\[\s*\{\s*"op"\s*:/.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * 从 AI 回复中提取 JSON 数组字符串
+ * 支持：直接 JSON、代码块包裹、前后有多余文字等情况
+ * 返回 null 表示非操作指令（闲聊）
+ */
+function extractJSONArray(text) {
+  const trimmed = text.trim();
+
+  // 1. 直接以 [ 开头 ] 结尾
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return trimmed;
+  }
+
+  // 2. 尝试从代码块中提取
+  const codeBlockMatch = trimmed.match(/```[\w]*\s*\n?([\s\S]*?)\n?\s*```/);
+  if (codeBlockMatch) {
+    const inner = codeBlockMatch[1].trim();
+    if (inner.startsWith('[') && inner.endsWith(']')) {
+      return inner;
+    }
+  }
+
+  // 3. 贪婪匹配最外层 [ ... ]
+  const arrayMatch = trimmed.match(/(\[[\s\S]*\])/);
+  if (arrayMatch) {
+    const candidate = arrayMatch[1].trim();
+    // 验证它确实包含操作指令关键字
+    if (/"op"\s*:/.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 /** 发送对话消息（流式） */
 async function handleChat() {
   const input = $('chatInput');
@@ -49,7 +99,7 @@ async function handleChat() {
   let fullResponse = '';
 
   try {
-    const selectedModel = $('modelSelect').value || '';
+    const selectedModel = $('chatModelSelect')?.value || $('modelSelect')?.value || '';
 
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -75,10 +125,11 @@ async function handleChat() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let sseFinished = false;
 
     if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
 
-    while (true) {
+    while (!sseFinished) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -92,13 +143,13 @@ async function handleChat() {
 
         const delta = parseChatSSEDelta(trimmed);
         if (!delta) continue;
-        if (delta.done) break;
+        if (delta.done) { sseFinished = true; break; }
         if (delta.content) {
           fullResponse += delta.content;
           // 流式更新气泡内容
           if (bubbleEl) {
             // 如果看起来是 JSON 操作指令，显示处理中提示
-            if (fullResponse.trimStart().startsWith('[')) {
+            if (looksLikeJSON(fullResponse)) {
               bubbleEl.textContent = '🔧 正在生成修改指令...';
             } else {
               bubbleEl.textContent = fullResponse;
@@ -118,21 +169,13 @@ async function handleChat() {
       return;
     }
 
-    // 判断模式：以 [ 开头视为操作指令，否则视为闲聊
-    if (fullResponse.startsWith('[')) {
+    // 判断模式：尝试提取 JSON 操作指令，否则视为闲聊
+    const jsonStr = extractJSONArray(fullResponse);
+    if (jsonStr) {
       // === 操作指令模式 ===
-      let raw = fullResponse;
-      // 清理可能的代码块包裹
-      raw = raw.replace(/^[\s\S]*?```[\w]*\n?/, '').replace(/\n?```[\s\S]*$/, '');
-      if (!raw.trim().startsWith('[')) {
-        const jsonMatch = raw.match(/\[[\s\S]*\]/);
-        if (jsonMatch) raw = jsonMatch[0];
-      }
-      raw = raw.trim();
-
       let operations;
       try {
-        operations = JSON.parse(raw);
+        operations = JSON.parse(jsonStr);
         if (!Array.isArray(operations)) operations = [operations];
       } catch {
         if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回格式异常，请重试';
