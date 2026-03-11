@@ -1,5 +1,5 @@
 /**
- * 核心生成流程（SSE 流式）
+ * 核心生成流程（SSE 流式）+ 多版本并行生成
  * 依赖: state.js, utils.js, ui.js, history.js, markmap.js, chat.js
  */
 
@@ -19,6 +19,155 @@ function parseSSEDelta(line) {
     return null;
   }
 }
+
+/* ===== 多版本 Tab 渲染 & 切换 ===== */
+
+/** 渲染版本 Tab 按钮 */
+function renderVersionTabs() {
+  const container = $('versionTabs');
+  if (!container) return;
+
+  const results = AppState.versionResults;
+  if (!results || results.length <= 1) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+  container.innerHTML = '';
+
+  results.forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'version-tab-btn' + (i === AppState.activeVersionIndex ? ' active' : '');
+    btn.textContent = `版本 ${i + 1}`;
+    btn.onclick = () => switchToVersion(i);
+    container.appendChild(btn);
+  });
+}
+
+/** 切换到指定版本 */
+function switchToVersion(index) {
+  const results = AppState.versionResults;
+  if (!results || index < 0 || index >= results.length) return;
+
+  AppState.activeVersionIndex = index;
+  const { markdown } = results[index];
+  AppState.currentMarkdown = markdown;
+
+  // 更新 markmap
+  if (AppState.markmapInstance) {
+    _animationMode = 'idle';
+    AppState.markmapInstance.setOptions({ duration: 600 });
+    const transformer = getTransformer();
+    const { root } = transformer.transform(markdown);
+    AppState.markmapInstance.setData(root);
+    AppState.markmapInstance.fit();
+    setTimeout(() => {
+      if (AppState.markmapInstance) AppState.markmapInstance.setOptions({ duration: 300 });
+    }, 700);
+  } else {
+    renderMarkmap(markdown);
+  }
+
+  $('markdownContent').textContent = markdown;
+
+  // 更新 Tab 高亮
+  const btns = document.querySelectorAll('.version-tab-btn');
+  btns.forEach((b, i) => b.classList.toggle('active', i === index));
+}
+
+/** 清除版本数据 */
+function clearVersionResults() {
+  AppState.versionResults = [];
+  AppState.activeVersionIndex = -1;
+  const container = $('versionTabs');
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
+/* ===== 单版本 SSE 流式消费 ===== */
+
+/**
+ * 以流式方式消费 SSE 并实时渲染 markmap
+ * @returns {Promise<string>} 最终的 markdown 文本
+ */
+async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRender }) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let accumulated = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const delta = parseSSEDelta(trimmed);
+      if (!delta) continue;
+      if (delta.done) break;
+      if (delta.content) {
+        accumulated += delta.content;
+        if (onDelta) onDelta(delta.content, accumulated);
+        if (onThrottledRender) onThrottledRender(accumulated);
+      }
+    }
+  }
+
+  return accumulated.trim();
+}
+
+/**
+ * 以非流式方式收集完整结果（用于额外版本的后台生成）
+ * @returns {Promise<string>}
+ */
+async function _collectFullResponse(topic, selectedModel, customPrompt, temperature, abortSignal) {
+  const response = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, model: selectedModel, customPrompt, temperature }),
+    signal: abortSignal,
+  });
+
+  if (!response.ok) {
+    let errMsg = '生成失败';
+    try { const d = await response.json(); errMsg = d.error || errMsg; } catch {}
+    throw new Error(errMsg);
+  }
+
+  // 读取完整 SSE 流但不做实时渲染
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const delta = parseSSEDelta(trimmed);
+      if (!delta) continue;
+      if (delta.done) break;
+      if (delta.content) result += delta.content;
+    }
+  }
+
+  return result.trim();
+}
+
+/* ===== 主生成入口 ===== */
 
 /** 生成按钮点击事件 */
 async function handleGenerate() {
@@ -57,7 +206,8 @@ async function handleGenerate() {
   const hero = $('heroSection');
   if (hero) hero.style.display = 'none';
 
-  // 清空旧内容
+  // 清空旧内容 & 版本
+  clearVersionResults();
   AppState.currentMarkdown = '';
   AppState.currentTopic = topic;
   $('markdownContent').textContent = '';
@@ -69,11 +219,15 @@ async function handleGenerate() {
   AppState.streamAbort = abortController;
   AppState.isStreaming = true;
 
-  // 节流更新 markmap（流式生成期间用线性缓动 + 短时长保持丝滑）
+  // 版本数量
+  const versionSlider = $('versionSlider');
+  const versionCount = versionSlider ? parseInt(versionSlider.value, 10) || 1 : 1;
+
+  // 节流渲染参数
   let renderTimer = null;
   let lastRenderTime = 0;
   let rafId = null;
-  const RENDER_INTERVAL = 400; // ms — 与 duration=400ms 匹配，积攒更多节点一起动画，更慢更丝滑
+  const RENDER_INTERVAL = 400;
 
   function scheduleRender() {
     const now = Date.now();
@@ -89,11 +243,10 @@ async function handleGenerate() {
     lastRenderTime = Date.now();
     const md = AppState.currentMarkdown.trim();
     if (md) {
-      // rAF 确保更新发生在浏览器绘制帧内，避免强制回流
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        updateMarkmap(md, false); // false = 流式期间禁用过渡动画
+        updateMarkmap(md, false);
         $('markdownContent').textContent = md;
       });
     }
@@ -103,88 +256,95 @@ async function handleGenerate() {
     const selectedModel = $('modelSelect').value || '';
     const customPrompt = ($('customPrompt').value || '').trim();
 
+    // ===== 版本 1: 始终流式预览 =====
+    const baseTemp = 0.7;
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, model: selectedModel, customPrompt }),
+      body: JSON.stringify({ topic, model: selectedModel, customPrompt, temperature: baseTemp }),
       signal: abortController.signal,
     });
 
     if (!response.ok) {
-      // 非流式错误响应
       let errMsg = '生成失败，请重试';
-      try {
-        const errData = await response.json();
-        errMsg = errData.error || errMsg;
-      } catch {}
+      try { const errData = await response.json(); errMsg = errData.error || errMsg; } catch {}
       throw new Error(errMsg);
     }
 
-    // 读取 SSE 流
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // 按行处理 SSE
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 最后一个可能是不完整的行
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        const delta = parseSSEDelta(trimmed);
-        if (!delta) continue;
-        if (delta.done) break;
-        if (delta.content) {
-          AppState.currentMarkdown += delta.content;
-          scheduleRender();
-        }
+    // ===== 启动额外版本的后台生成 =====
+    const extraPromises = [];
+    if (versionCount > 1) {
+      for (let i = 1; i < versionCount; i++) {
+        // 每个额外版本使用不同 temperature
+        const temp = Math.min(baseTemp + i * 0.15, 1.5);
+        extraPromises.push(
+          _collectFullResponse(topic, selectedModel, customPrompt, temp, abortController.signal)
+            .catch((err) => {
+              console.warn(`版本 ${i + 1} 生成失败:`, err.message);
+              return null; // 失败的版本返回 null
+            })
+        );
       }
     }
 
-    // 最终渲染
-    if (renderTimer) {
-      clearTimeout(renderTimer);
-      renderTimer = null;
-    }
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
+    // ===== 消费版本 1 的 SSE 流 =====
+    const finalMd = await _consumeSSEStream(response, abortController.signal, {
+      onDelta: (delta, accumulated) => {
+        AppState.currentMarkdown = accumulated;
+      },
+      onThrottledRender: () => scheduleRender(),
+    });
 
-    const finalMd = AppState.currentMarkdown.trim();
+    // 清理节流定时器
+    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
     if (!finalMd) {
       throw new Error('AI 返回了空内容，请重试');
     }
 
-    // 最终渲染：恢复丝滑的 easeQuadOut 缓动 + 适当时长，做一次优雅的展开
+    AppState.currentMarkdown = finalMd;
+
+    // 最终渲染：优雅展开
     if (AppState.markmapInstance) {
-      // 切回正常动画模式（easeQuadOut）
       _animationMode = 'idle';
-      // 用稍长的 duration 做一次完整的"定位到位"动画，视觉上有收束感
       AppState.markmapInstance.setOptions({ duration: 800 });
-      // 用最终数据做一次带动画的更新 + fit，让整棵树优雅地展开到位
       const transformer = getTransformer();
       const { root } = transformer.transform(finalMd);
       AppState.markmapInstance.setData(root);
       AppState.markmapInstance.fit();
-      // 动画结束后恢复常规交互时长
       setTimeout(() => {
-        if (AppState.markmapInstance) {
-          AppState.markmapInstance.setOptions({ duration: 300 });
-        }
+        if (AppState.markmapInstance) AppState.markmapInstance.setOptions({ duration: 300 });
       }, 900);
     } else {
       renderMarkmap(finalMd);
     }
     $('markdownContent').textContent = finalMd;
+
+    // ===== 收集所有版本结果 =====
+    if (versionCount > 1) {
+      // 版本 1 已就绪
+      AppState.versionResults = [{ markdown: finalMd }];
+      AppState.activeVersionIndex = 0;
+
+      // 等待额外版本完成
+      const extraResults = await Promise.all(extraPromises);
+      for (const md of extraResults) {
+        if (md) {
+          AppState.versionResults.push({ markdown: md });
+        }
+      }
+
+      // 渲染版本 Tab
+      renderVersionTabs();
+      if (AppState.versionResults.length > 1) {
+        showToast(`已生成 ${AppState.versionResults.length} 个版本`, 'success');
+      }
+    } else {
+      // 单版本
+      AppState.versionResults = [{ markdown: finalMd }];
+      AppState.activeVersionIndex = 0;
+    }
 
     // 保存历史
     saveHistory(topic, finalMd);

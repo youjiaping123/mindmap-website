@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { topic, model, customPrompt } = req.body;
+    const { topic, model, customPrompt, temperature: reqTemp } = req.body;
 
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       return errorResponse(res, 400, 'Please provide a valid topic');
@@ -29,6 +29,10 @@ export default async function handler(req, res) {
     }
 
     const selectedModel = resolveModel(model, defaultModel);
+
+    // 支持前端自定义 temperature（用于多版本生成）
+    const temperature = (typeof reqTemp === 'number' && reqTemp >= 0 && reqTemp <= 2)
+      ? reqTemp : 0.7;
 
     const useCustom = customPrompt && typeof customPrompt === 'string' && customPrompt.trim();
     const systemPrompt = useCustom ? customPrompt.trim() : DEFAULT_SYSTEM_PROMPT;
@@ -44,7 +48,7 @@ export default async function handler(req, res) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.7,
+      temperature,
       maxTokens: 4096,
     });
 

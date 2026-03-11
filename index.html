@@ -99,6 +99,11 @@
               <option value="">加载中...</option>
             </select>
           </div>
+          <div class="version-count-group">
+            <span class="select-label">版本</span>
+            <input type="range" id="versionSlider" min="1" max="5" value="1" class="version-slider">
+            <span id="versionCountDisplay" class="version-count-display">1</span>
+          </div>
         </div>
         <div class="input-group">
           <div class="input-wrapper">
@@ -183,6 +188,8 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           Markdown
         </button>
+        <!-- 多版本标签（动态生成） -->
+        <div id="versionTabs" class="version-tabs" style="display:none;"></div>
       </div>
       <div class="toolbar-right">
         <button class="export-btn xmind-btn" onclick="downloadXmind()">
@@ -214,6 +221,19 @@
         <pre id="markdownContent" class="markdown-content"></pre>
       </div>
     </section>
+
+    <!-- 节点编辑弹窗 -->
+    <div id="nodeEditModal" class="node-edit-modal" style="display:none;">
+      <div class="node-edit-backdrop" onclick="closeNodeEditModal()"></div>
+      <div class="node-edit-dialog">
+        <h3>✏️ 编辑节点</h3>
+        <textarea id="nodeEditInput" class="node-edit-input" rows="4" placeholder="输入节点的新内容..."></textarea>
+        <div class="node-edit-actions">
+          <button class="node-edit-cancel" onclick="closeNodeEditModal()">取消</button>
+          <button class="node-edit-save" onclick="saveNodeEdit()">保存</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 对话式修改区域 -->
     <section id="chatSection" class="chat-section" style="display:none;" aria-label="对话修改">

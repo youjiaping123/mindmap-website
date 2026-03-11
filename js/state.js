@@ -17,4 +17,7 @@ const AppState = {
   markdownUndoStack: [],
   markdownRedoStack: [],
   maxUndoSize: 20,
+  /** 多版本生成 */
+  versionResults: [],      // [{ markdown, root }]  每个版本的结果
+  activeVersionIndex: -1,  // 当前激活的版本索引
 };

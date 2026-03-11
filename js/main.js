@@ -58,9 +58,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 150);
   }
 
-  // ESC 键退出模拟全屏（原生全屏浏览器自动处理）
+  // 版本滑块 - 拖动时实时更新显示数字
+  const versionSlider = $('versionSlider');
+  const versionCountDisplay = $('versionCountDisplay');
+  if (versionSlider && versionCountDisplay) {
+    versionSlider.addEventListener('input', () => {
+      versionCountDisplay.textContent = versionSlider.value;
+    });
+  }
+
+  // 节点编辑弹窗 - 取消 & 保存 & 背景点击关闭
+  const nodeEditModal = $('nodeEditModal');
+  if (nodeEditModal) {
+    const cancelBtn = nodeEditModal.querySelector('.node-edit-cancel');
+    const saveBtn = nodeEditModal.querySelector('.node-edit-save');
+    const backdrop = nodeEditModal.querySelector('.node-edit-backdrop');
+
+    if (cancelBtn) cancelBtn.addEventListener('click', closeNodeEditModal);
+    if (saveBtn) saveBtn.addEventListener('click', saveNodeEdit);
+    if (backdrop) backdrop.addEventListener('click', closeNodeEditModal);
+
+    // ESC 关闭编辑弹窗
+    const editInput = $('nodeEditInput');
+    if (editInput) {
+      editInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeNodeEditModal();
+        }
+      });
+    }
+  }
+
+  // ESC 键关闭弹窗/退出全屏（全局）
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      // 优先关闭节点编辑弹窗
+      const modal = $('nodeEditModal');
+      if (modal && modal.style.display === 'flex') {
+        e.preventDefault();
+        closeNodeEditModal();
+        return;
+      }
+      // 其次退出模拟全屏
       const panel = $('previewPanel');
       if (panel && panel.classList.contains('is-fake-fullscreen')) {
         e.preventDefault();
