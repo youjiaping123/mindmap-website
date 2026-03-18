@@ -20,20 +20,140 @@ const PngExport = (() => {
 
   const fontBytesCache = new Map();
 
-  function getExportBox(svgElement, padding = 40) {
-    const bbox = svgElement.getBBox();
-    const width = bbox.width + padding * 2;
-    const height = bbox.height + padding * 2;
+  function mergeBounds(base, rect) {
+    if (!rect) return base;
+    if (!base) return { ...rect };
 
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    const x = Math.min(base.x, rect.x);
+    const y = Math.min(base.y, rect.y);
+    const right = Math.max(base.x + base.width, rect.x + rect.width);
+    const bottom = Math.max(base.y + base.height, rect.y + rect.height);
+
+    return {
+      x,
+      y,
+      width: right - x,
+      height: bottom - y,
+    };
+  }
+
+  function toValidBounds(rect) {
+    if (!rect) return null;
+    if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) {
+      return null;
+    }
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  function getLabelElement(foreignObject) {
+    return foreignObject.querySelector('div div') || foreignObject.querySelector('div');
+  }
+
+  function getLabelClientRect(labelEl) {
+    const range = document.createRange();
+    range.selectNodeContents(labelEl);
+    const rangeRect = range.getBoundingClientRect();
+
+    if (rangeRect.width > 0 && rangeRect.height > 0) {
+      return rangeRect;
+    }
+
+    return labelEl.getBoundingClientRect();
+  }
+
+  function screenRectToSvgRect(svgElement, clientRect) {
+    const validClientRect = toValidBounds(clientRect);
+    const screenCTM = svgElement.getScreenCTM();
+
+    if (!validClientRect || !screenCTM) {
+      return null;
+    }
+
+    const left = clientRect.left ?? validClientRect.x;
+    const top = clientRect.top ?? validClientRect.y;
+    const right = clientRect.right ?? (validClientRect.x + validClientRect.width);
+    const bottom = clientRect.bottom ?? (validClientRect.y + validClientRect.height);
+    const inverse = screenCTM.inverse();
+    const corners = [
+      new DOMPoint(left, top),
+      new DOMPoint(right, top),
+      new DOMPoint(left, bottom),
+      new DOMPoint(right, bottom),
+    ].map((point) => point.matrixTransform(inverse));
+    const xs = corners.map((point) => point.x);
+    const ys = corners.map((point) => point.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    const svgRight = Math.max(...xs);
+    const svgBottom = Math.max(...ys);
+
+    return toValidBounds({
+      x,
+      y,
+      width: svgRight - x,
+      height: svgBottom - y,
+    });
+  }
+
+  function extractTextLayers(svgElement) {
+    return Array.from(svgElement.querySelectorAll('foreignObject')).map((fo) => {
+      const labelEl = getLabelElement(fo);
+
+      if (!labelEl) return null;
+
+      const clientRect = getLabelClientRect(labelEl);
+      const svgRect = screenRectToSvgRect(svgElement, clientRect);
+      const style = window.getComputedStyle(labelEl);
+      const fontSizePx = parseFloat(style.fontSize) || 16;
+      const parsedLineHeight = parseFloat(style.lineHeight);
+      const lineHeightPx = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSizePx * 1.2;
+      const widthScale = clientRect.width > 0 ? svgRect?.width / clientRect.width : 1;
+      const heightScale = clientRect.height > 0 ? svgRect?.height / clientRect.height : widthScale;
+      const text = (labelEl.innerText || labelEl.textContent || '').replace(/\r/g, '').trim();
+
+      if (!svgRect || !text) return null;
+
+      return {
+        text,
+        x: svgRect.x,
+        y: svgRect.y,
+        width: svgRect.width,
+        height: svgRect.height,
+        fontSize: fontSizePx * heightScale,
+        lineHeight: lineHeightPx * heightScale,
+        fontStyle: parseInt(style.fontWeight, 10) >= 600 ? 'bold' : 'normal',
+        color: parseColor(style.color),
+      };
+    }).filter(Boolean);
+  }
+
+  function getExportBox(svgElement, padding = 40, textLayers = null) {
+    const bbox = toValidBounds(svgElement.getBBox());
+    const layers = Array.isArray(textLayers) ? textLayers : extractTextLayers(svgElement);
+    const contentBounds = layers.reduce((bounds, layer) => mergeBounds(bounds, {
+      x: layer.x,
+      y: layer.y,
+      width: layer.width,
+      height: layer.height,
+    }), bbox);
+
+    if (!contentBounds) {
       throw new Error('思维导图尚未完成渲染，请稍后再试');
     }
 
     return {
-      x: bbox.x - padding,
-      y: bbox.y - padding,
-      width,
-      height,
+      x: contentBounds.x - padding,
+      y: contentBounds.y - padding,
+      width: contentBounds.width + padding * 2,
+      height: contentBounds.height + padding * 2,
     };
   }
 
@@ -80,7 +200,7 @@ const PngExport = (() => {
 
         for (const prop of importantProps) {
           const value = computedStyle.getPropertyValue(prop);
-          if (value && value !== '' && value !== 'normal' && value !== 'none') {
+          if (value && value !== '' && value !== 'normal') {
             cloneChild.style.setProperty(prop, value);
           }
         }
@@ -98,7 +218,7 @@ const PngExport = (() => {
       height,
     } = options;
 
-    const exportBox = getExportBox(svgElement, padding);
+    const exportBox = getExportBox(svgElement, padding, options.textLayers);
     const clonedSvg = svgElement.cloneNode(true);
 
     inlineStyles(svgElement, clonedSvg);
@@ -297,35 +417,6 @@ const PngExport = (() => {
     svgNode.querySelectorAll('style').forEach((node) => node.remove());
   }
 
-  function extractTextLayers(svgElement, exportBox) {
-    return Array.from(svgElement.querySelectorAll('foreignObject')).map((fo) => {
-      const bbox = fo.getBBox();
-      const ctm = fo.getCTM();
-      const labelEl = fo.querySelector('div div') || fo.querySelector('div');
-
-      if (!ctm || !labelEl) return null;
-
-      const scaleX = Math.hypot(ctm.a, ctm.b) || 1;
-      const scaleY = Math.hypot(ctm.c, ctm.d) || scaleX;
-      const topLeft = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
-      const style = window.getComputedStyle(labelEl);
-      const fontSizePx = parseFloat(style.fontSize) || 16;
-      const lineHeightPx = parseFloat(style.lineHeight) || fontSizePx * 1.2;
-
-      return {
-        text: (labelEl.textContent || '').trim(),
-        x: topLeft.x - exportBox.x,
-        y: topLeft.y - exportBox.y,
-        width: bbox.width * scaleX,
-        height: bbox.height * scaleY,
-        fontSize: fontSizePx * scaleY,
-        lineHeight: lineHeightPx * scaleY,
-        fontStyle: parseInt(style.fontWeight, 10) >= 600 ? 'bold' : 'normal',
-        color: parseColor(style.color),
-      };
-    }).filter((item) => item && item.text);
-  }
-
   async function createGeometryPdfBytes(svgElement, options = {}) {
     if (typeof window.jspdf === 'undefined') {
       throw new Error('几何 PDF 导出库未加载，请刷新页面重试');
@@ -399,11 +490,17 @@ const PngExport = (() => {
       backgroundColor = '#ffffff',
     } = options;
 
-    const exportBox = getExportBox(svgElement, padding);
-    const textLayers = extractTextLayers(svgElement, exportBox);
+    const absoluteTextLayers = extractTextLayers(svgElement);
+    const exportBox = getExportBox(svgElement, padding, absoluteTextLayers);
+    const textLayers = absoluteTextLayers.map((layer) => ({
+      ...layer,
+      x: layer.x - exportBox.x,
+      y: layer.y - exportBox.y,
+    }));
     const { pdfBytes: geometryPdfBytes } = await createGeometryPdfBytes(svgElement, {
       padding,
       backgroundColor,
+      textLayers: absoluteTextLayers,
     });
 
     const pdfDoc = await PDFDocument.load(geometryPdfBytes);
