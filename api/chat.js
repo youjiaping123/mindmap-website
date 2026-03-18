@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     return errorResponse(res, 405, 'Method not allowed');
   }
 
-  const { apiKey, baseUrl, defaultModel } = getOpenAIConfig();
+  const { apiKey, baseUrl, defaultModel, chatMaxTokens } = getOpenAIConfig();
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
       model: selectedModel,
       messages,
       temperature: 0.3,
-      maxTokens: 2048,
+      maxTokens: chatMaxTokens,
     });
 
     // 直接将 SSE 流转发给前端

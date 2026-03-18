@@ -7,16 +7,7 @@
  * 解析 SSE 数据行，提取 content delta
  */
 function parseChatSSEDelta(line) {
-  if (!line.startsWith('data: ')) return null;
-  const payload = line.slice(6).trim();
-  if (payload === '[DONE]') return { done: true };
-  try {
-    const json = JSON.parse(payload);
-    const content = json?.choices?.[0]?.delta?.content;
-    return content != null ? { content } : null;
-  } catch {
-    return null;
-  }
+  return parseOpenAICompatibleSSELine(line);
 }
 
 /**
@@ -126,8 +117,35 @@ async function handleChat() {
     const decoder = new TextDecoder();
     let buffer = '';
     let sseFinished = false;
+    let finishReason = null;
 
     if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
+
+    function consumeLine(line) {
+      const delta = parseChatSSEDelta(line);
+      if (!delta) return false;
+      if (delta.errorMessage) throw new Error(delta.errorMessage);
+      if (delta.finishReason) finishReason = delta.finishReason;
+      if (delta.done) return true;
+
+      if (delta.content) {
+        fullResponse += delta.content;
+        // 流式更新气泡内容
+        if (bubbleEl) {
+          // 如果看起来是 JSON 操作指令，显示处理中提示
+          if (looksLikeJSON(fullResponse)) {
+            bubbleEl.textContent = '🔧 正在生成修改指令...';
+          } else {
+            bubbleEl.textContent = fullResponse;
+          }
+          // 自动滚动
+          const body = $('chatBody');
+          if (body) body.scrollTop = body.scrollHeight;
+        }
+      }
+
+      return false;
+    }
 
     while (!sseFinished) {
       const { done, value } = await reader.read();
@@ -140,33 +158,23 @@ async function handleChat() {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-
-        const delta = parseChatSSEDelta(trimmed);
-        if (!delta) continue;
-        if (delta.done) { sseFinished = true; break; }
-        if (delta.content) {
-          fullResponse += delta.content;
-          // 流式更新气泡内容
-          if (bubbleEl) {
-            // 如果看起来是 JSON 操作指令，显示处理中提示
-            if (looksLikeJSON(fullResponse)) {
-              bubbleEl.textContent = '🔧 正在生成修改指令...';
-            } else {
-              bubbleEl.textContent = fullResponse;
-            }
-            // 自动滚动
-            const body = $('chatBody');
-            if (body) body.scrollTop = body.scrollHeight;
-          }
-        }
+        if (consumeLine(trimmed)) { sseFinished = true; break; }
       }
     }
+
+    const trailingLine = buffer.trim();
+    if (trailingLine) consumeLine(trailingLine);
 
     fullResponse = fullResponse.trim();
 
     if (!fullResponse) {
       if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回了空结果，请重试';
       return;
+    }
+
+    const finishMessage = getFinishReasonMessage(finishReason, '回复');
+    if (finishMessage) {
+      showToast(finishMessage, 'info', 5000);
     }
 
     // 判断模式：尝试提取 JSON 操作指令，否则视为闲聊

@@ -3,11 +3,29 @@
 /**
  * 获取 OpenAI API 配置（从环境变量）
  */
+function readPositiveIntEnv(name) {
+  const raw = process.env[name];
+  if (!raw) return null;
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
   const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
-  return { apiKey, baseUrl, defaultModel };
+  const sharedMaxTokens = readPositiveIntEnv('OPENAI_MAX_TOKENS');
+  const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens ?? 8192;
+  const chatMaxTokens = readPositiveIntEnv('OPENAI_CHAT_MAX_TOKENS') ?? sharedMaxTokens ?? 4096;
+
+  return {
+    apiKey,
+    baseUrl,
+    defaultModel,
+    generateMaxTokens,
+    chatMaxTokens,
+  };
 }
 
 /**

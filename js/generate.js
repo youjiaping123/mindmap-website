@@ -8,16 +8,7 @@
  * OpenAI SSE 格式: data: {"choices":[{"delta":{"content":"xxx"}}]}
  */
 function parseSSEDelta(line) {
-  if (!line.startsWith('data: ')) return null;
-  const payload = line.slice(6).trim();
-  if (payload === '[DONE]') return { done: true };
-  try {
-    const json = JSON.parse(payload);
-    const content = json?.choices?.[0]?.delta?.content;
-    return content != null ? { content } : null;
-  } catch {
-    return null;
-  }
+  return parseOpenAICompatibleSSELine(line);
 }
 
 /* ===== 多版本 Tab 渲染 & 切换 ===== */
@@ -91,13 +82,30 @@ function clearVersionResults() {
 
 /**
  * 以流式方式消费 SSE 并实时渲染 markmap
- * @returns {Promise<string>} 最终的 markdown 文本
+ * @returns {Promise<{ content: string, finishReason: string | null }>} 最终结果
  */
 async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRender }) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let accumulated = '';
+  let finishReason = null;
+
+  function consumeLine(line) {
+    const delta = parseSSEDelta(line);
+    if (!delta) return false;
+    if (delta.errorMessage) throw new Error(delta.errorMessage);
+    if (delta.finishReason) finishReason = delta.finishReason;
+    if (delta.done) return true;
+
+    if (delta.content) {
+      accumulated += delta.content;
+      if (onDelta) onDelta(delta.content, accumulated);
+      if (onThrottledRender) onThrottledRender(accumulated);
+    }
+
+    return false;
+  }
 
   while (true) {
     const { done, value } = await reader.read();
@@ -110,18 +118,17 @@ async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRe
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const delta = parseSSEDelta(trimmed);
-      if (!delta) continue;
-      if (delta.done) break;
-      if (delta.content) {
-        accumulated += delta.content;
-        if (onDelta) onDelta(delta.content, accumulated);
-        if (onThrottledRender) onThrottledRender(accumulated);
-      }
+      if (consumeLine(trimmed)) break;
     }
   }
 
-  return accumulated.trim();
+  const trailingLine = buffer.trim();
+  if (trailingLine) consumeLine(trailingLine);
+
+  return {
+    content: accumulated.trim(),
+    finishReason,
+  };
 }
 
 /**
@@ -147,6 +154,17 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
   const decoder = new TextDecoder();
   let buffer = '';
   let result = '';
+  let finishReason = null;
+
+  function consumeLine(line) {
+    const delta = parseSSEDelta(line);
+    if (!delta) return false;
+    if (delta.errorMessage) throw new Error(delta.errorMessage);
+    if (delta.finishReason) finishReason = delta.finishReason;
+    if (delta.done) return true;
+    if (delta.content) result += delta.content;
+    return false;
+  }
 
   while (true) {
     const { done, value } = await reader.read();
@@ -157,11 +175,15 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const delta = parseSSEDelta(trimmed);
-      if (!delta) continue;
-      if (delta.done) break;
-      if (delta.content) result += delta.content;
+      if (consumeLine(trimmed)) break;
     }
+  }
+
+  const trailingLine = buffer.trim();
+  if (trailingLine) consumeLine(trailingLine);
+
+  if (finishReason && finishReason !== 'stop') {
+    console.warn('后台版本生成提前结束:', finishReason);
   }
 
   return result.trim();
@@ -288,7 +310,7 @@ async function handleGenerate() {
     }
 
     // ===== 消费版本 1 的 SSE 流 =====
-    const finalMd = await _consumeSSEStream(response, abortController.signal, {
+    const { content: finalMd, finishReason } = await _consumeSSEStream(response, abortController.signal, {
       onDelta: (delta, accumulated) => {
         AppState.currentMarkdown = accumulated;
       },
@@ -301,6 +323,11 @@ async function handleGenerate() {
 
     if (!finalMd) {
       throw new Error('AI 返回了空内容，请重试');
+    }
+
+    const finishMessage = getFinishReasonMessage(finishReason, '生成');
+    if (finishMessage) {
+      showToast(finishMessage, 'info', 5000);
     }
 
     AppState.currentMarkdown = finalMd;

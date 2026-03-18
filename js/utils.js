@@ -34,3 +34,60 @@ function formatTime(date) {
 function $(id) {
   return document.getElementById(id);
 }
+
+/** 提取兼容 OpenAI 风格 content 字段中的文本 */
+function extractLLMTextContent(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+
+  return content.map((part) => {
+    if (typeof part === 'string') return part;
+    if (!part || typeof part !== 'object') return '';
+    if (typeof part.text === 'string') return part.text;
+    if (part.text && typeof part.text.value === 'string') return part.text.value;
+    if (typeof part.value === 'string') return part.value;
+    return '';
+  }).join('');
+}
+
+/** 解析 OpenAI 兼容 SSE 数据行 */
+function parseOpenAICompatibleSSELine(line) {
+  if (!line.startsWith('data: ')) return null;
+
+  const payload = line.slice(6).trim();
+  if (!payload) return null;
+  if (payload === '[DONE]') return { done: true };
+
+  try {
+    const json = JSON.parse(payload);
+    if (json?.error?.message) {
+      return { errorMessage: json.error.message };
+    }
+
+    const choice = json?.choices?.[0];
+    const content = extractLLMTextContent(choice?.delta?.content);
+
+    return {
+      content: content || null,
+      finishReason: choice?.finish_reason || null,
+      errorMessage: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 将 finish_reason 转换为可读提示 */
+function getFinishReasonMessage(finishReason, label = '输出') {
+  if (!finishReason || finishReason === 'stop') return '';
+
+  switch (finishReason) {
+    case 'length':
+    case 'max_tokens':
+      return `AI ${label}达到 token 上限，结果可能被截断`;
+    case 'content_filter':
+      return `AI ${label}触发内容过滤，结果被拦截或截断`;
+    default:
+      return `AI ${label}提前结束（finish_reason: ${finishReason}）`;
+  }
+}

@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     return errorResponse(res, 405, 'Method not allowed');
   }
 
-  const { apiKey, baseUrl, defaultModel } = getOpenAIConfig();
+  const { apiKey, baseUrl, defaultModel, generateMaxTokens } = getOpenAIConfig();
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         { role: 'user', content: userMessage },
       ],
       temperature,
-      maxTokens: 4096,
+      maxTokens: generateMaxTokens,
     });
 
     // 以 SSE 流式转发给前端
