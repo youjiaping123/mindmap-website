@@ -55,21 +55,19 @@ async function downloadSvg() {
   }
 }
 
-/** 下载高清 PDF */
+/** 下载矢量 PDF */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
   switchTab('preview');
   try {
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
-    showToast('正在生成 PDF...', 'info');
-    const result = await PngExport.downloadPdf(svgEl, filename, {
-      scale: 4,
+    showToast('正在生成矢量 PDF...', 'info');
+    await PngExport.downloadPdf(svgEl, filename, {
       padding: 50,
       backgroundColor: '#ffffff',
-      quality: 0.98,
     });
-    showToast(`PDF 下载成功${getExportAdvice(result)}`, 'success');
+    showToast('PDF 下载成功，已嵌入中文字体并保留矢量细节', 'success');
   } catch (error) {
     showError('导出 PDF 失败: ' + error.message);
   }

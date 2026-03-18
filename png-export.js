@@ -4,7 +4,7 @@
  * 提供 PNG、SVG、PDF 导出：
  * - PNG: 无损位图，适合普通分享
  * - SVG: 矢量图，适合大图和后续编辑
- * - PDF: 基于 PNG 的高保真单页 PDF
+ * - PDF: 真矢量 PDF，中文文字通过 pdf-lib 嵌入开源字体
  */
 
 const PngExport = (() => {
@@ -12,6 +12,13 @@ const PngExport = (() => {
     maxCanvasDimension: 16384,
     maxCanvasArea: 120000000,
   };
+
+  const VECTOR_PDF_FONT = {
+    normalUrl: 'assets/fonts/LXGWWenKaiLite-Regular.ttf',
+    boldUrl: 'assets/fonts/LXGWWenKaiLite-Medium.ttf',
+  };
+
+  const fontBytesCache = new Map();
 
   function getExportBox(svgElement, padding = 40) {
     const bbox = svgElement.getBBox();
@@ -83,7 +90,7 @@ const PngExport = (() => {
     }
   }
 
-  function createStandaloneSvgString(svgElement, options = {}) {
+  function createStandaloneSvgElement(svgElement, options = {}) {
     const {
       padding = 40,
       backgroundColor = '#ffffff',
@@ -113,9 +120,18 @@ const PngExport = (() => {
       clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
     }
 
-    const serializer = new XMLSerializer();
     return {
-      svgString: serializer.serializeToString(clonedSvg),
+      svgNode: clonedSvg,
+      exportBox,
+    };
+  }
+
+  function createStandaloneSvgString(svgElement, options = {}) {
+    const { svgNode, exportBox } = createStandaloneSvgElement(svgElement, options);
+    const serializer = new XMLSerializer();
+
+    return {
+      svgString: serializer.serializeToString(svgNode),
       exportBox,
     };
   }
@@ -179,7 +195,7 @@ const PngExport = (() => {
       mimeType = 'image/png',
     } = options;
 
-    const { svgString, exportBox } = createStandaloneSvgString(svgElement, {
+    const { exportBox } = createStandaloneSvgString(svgElement, {
       padding,
       backgroundColor,
     });
@@ -187,7 +203,7 @@ const PngExport = (() => {
     const outputWidth = Math.max(1, Math.round(exportBox.width * actualScale));
     const outputHeight = Math.max(1, Math.round(exportBox.height * actualScale));
 
-    const rasterizedSvg = createStandaloneSvgString(svgElement, {
+    const { svgString } = createStandaloneSvgString(svgElement, {
       padding,
       backgroundColor,
       width: outputWidth,
@@ -195,7 +211,7 @@ const PngExport = (() => {
     });
 
     const blob = await svgStringToImageBlob(
-      rasterizedSvg.svgString,
+      svgString,
       outputWidth,
       outputHeight,
       { mimeType, quality, backgroundColor },
@@ -203,7 +219,6 @@ const PngExport = (() => {
 
     return {
       blob,
-      svgString,
       exportBox,
       outputWidth,
       outputHeight,
@@ -224,13 +239,136 @@ const PngExport = (() => {
     URL.revokeObjectURL(url);
   }
 
-  function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error('读取导出文件失败'));
-      reader.readAsDataURL(blob);
+  function parseColor(colorString) {
+    if (!colorString) return [0, 0, 0];
+
+    const rgbMatch = colorString.match(/rgba?\(([^)]+)\)/i);
+    if (rgbMatch) {
+      return rgbMatch[1].split(',').slice(0, 3).map((part) => parseFloat(part.trim()) || 0);
+    }
+
+    const hex = colorString.trim().replace('#', '');
+    if (hex.length === 3) {
+      return hex.split('').map((ch) => parseInt(ch + ch, 16));
+    }
+    if (hex.length === 6) {
+      return [
+        parseInt(hex.slice(0, 2), 16),
+        parseInt(hex.slice(2, 4), 16),
+        parseInt(hex.slice(4, 6), 16),
+      ];
+    }
+
+    return [0, 0, 0];
+  }
+
+  async function loadFontBytes(url) {
+    if (!fontBytesCache.has(url)) {
+      const promise = fetch(url)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error('中文字体资源加载失败');
+          }
+          return response.arrayBuffer();
+        });
+      fontBytesCache.set(url, promise);
+    }
+
+    return fontBytesCache.get(url);
+  }
+
+  function mountHiddenSvg(svgNode) {
+    const host = document.createElement('div');
+    host.style.position = 'fixed';
+    host.style.left = '-100000px';
+    host.style.top = '0';
+    host.style.width = '0';
+    host.style.height = '0';
+    host.style.opacity = '0';
+    host.style.pointerEvents = 'none';
+    host.style.overflow = 'hidden';
+    host.appendChild(svgNode);
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function stripNonGeometryNodes(svgNode) {
+    svgNode.querySelectorAll('foreignObject').forEach((node) => node.remove());
+    svgNode.querySelectorAll('style').forEach((node) => node.remove());
+  }
+
+  function extractTextLayers(svgElement, exportBox) {
+    return Array.from(svgElement.querySelectorAll('foreignObject')).map((fo) => {
+      const bbox = fo.getBBox();
+      const ctm = fo.getCTM();
+      const labelEl = fo.querySelector('div div') || fo.querySelector('div');
+
+      if (!ctm || !labelEl) return null;
+
+      const scaleX = Math.hypot(ctm.a, ctm.b) || 1;
+      const scaleY = Math.hypot(ctm.c, ctm.d) || scaleX;
+      const topLeft = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
+      const style = window.getComputedStyle(labelEl);
+      const fontSizePx = parseFloat(style.fontSize) || 16;
+      const lineHeightPx = parseFloat(style.lineHeight) || fontSizePx * 1.2;
+
+      return {
+        text: (labelEl.textContent || '').trim(),
+        x: topLeft.x - exportBox.x,
+        y: topLeft.y - exportBox.y,
+        width: bbox.width * scaleX,
+        height: bbox.height * scaleY,
+        fontSize: fontSizePx * scaleY,
+        lineHeight: lineHeightPx * scaleY,
+        fontStyle: parseInt(style.fontWeight, 10) >= 600 ? 'bold' : 'normal',
+        color: parseColor(style.color),
+      };
+    }).filter((item) => item && item.text);
+  }
+
+  async function createGeometryPdfBytes(svgElement, options = {}) {
+    if (typeof window.jspdf === 'undefined') {
+      throw new Error('几何 PDF 导出库未加载，请刷新页面重试');
+    }
+
+    const { jsPDF } = window.jspdf;
+    if (typeof jsPDF?.API?.svg !== 'function') {
+      throw new Error('SVG 转 PDF 库未加载，请刷新页面重试');
+    }
+
+    const { svgNode, exportBox } = createStandaloneSvgElement(svgElement, options);
+    stripNonGeometryNodes(svgNode);
+
+    const PX_TO_PT = 72 / 96;
+    const pdfWidth = Math.max(10, exportBox.width * PX_TO_PT);
+    const pdfHeight = Math.max(10, exportBox.height * PX_TO_PT);
+    const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+
+    const doc = new jsPDF({
+      orientation,
+      unit: 'pt',
+      format: [pdfWidth, pdfHeight],
+      compress: true,
+      putOnlyUsedFonts: true,
     });
+
+    const mountPoint = mountHiddenSvg(svgNode);
+
+    try {
+      await doc.svg(svgNode, {
+        x: 0,
+        y: 0,
+        width: pdfWidth,
+        height: pdfHeight,
+      });
+    } finally {
+      mountPoint.remove();
+    }
+
+    return {
+      exportBox,
+      pdfBytes: doc.output('arraybuffer'),
+    };
   }
 
   async function download(svgElement, filename, options = {}) {
@@ -251,43 +389,63 @@ const PngExport = (() => {
   }
 
   async function downloadPdf(svgElement, filename, options = {}) {
-    if (typeof window.jspdf === 'undefined') {
-      throw new Error('PDF 导出库未加载，请刷新页面重试');
+    if (typeof window.PDFLib === 'undefined' || typeof window.fontkit === 'undefined') {
+      throw new Error('PDF 字体嵌入库未加载，请刷新页面重试');
     }
 
+    const { PDFDocument, rgb } = window.PDFLib;
     const {
       padding = 40,
       backgroundColor = '#ffffff',
-      quality = 0.98,
-      scale = 4,
     } = options;
 
-    const result = await svgToImageBlob(svgElement, {
-      scale,
+    const exportBox = getExportBox(svgElement, padding);
+    const textLayers = extractTextLayers(svgElement, exportBox);
+    const { pdfBytes: geometryPdfBytes } = await createGeometryPdfBytes(svgElement, {
       padding,
       backgroundColor,
-      quality,
-      mimeType: 'image/png',
     });
 
-    const imgDataUrl = await blobToDataUrl(result.blob);
-    const PX_TO_MM = 0.264583;
-    const pdfWidth = Math.max(10, result.exportBox.width * PX_TO_MM);
-    const pdfHeight = Math.max(10, result.exportBox.height * PX_TO_MM);
-    const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+    const pdfDoc = await PDFDocument.load(geometryPdfBytes);
+    pdfDoc.registerFontkit(window.fontkit);
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation,
-      unit: 'mm',
-      format: [pdfWidth, pdfHeight],
-      compress: true,
+    const [normalFontBytes, boldFontBytes] = await Promise.all([
+      loadFontBytes(VECTOR_PDF_FONT.normalUrl),
+      loadFontBytes(VECTOR_PDF_FONT.boldUrl),
+    ]);
+    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: true });
+    const boldFont = await pdfDoc.embedFont(boldFontBytes, { subset: true });
+    const page = pdfDoc.getPages()[0];
+    const pageHeight = page.getHeight();
+    const PX_TO_PT = 72 / 96;
+
+    textLayers.forEach((layer) => {
+      const font = layer.fontStyle === 'bold' ? boldFont : normalFont;
+      const fontSizePt = Math.max(6, layer.fontSize * PX_TO_PT);
+      const lineHeightPt = Math.max(fontSizePt, layer.lineHeight * PX_TO_PT);
+      const textTopPt = (layer.y + Math.max((layer.height - layer.lineHeight) / 2, 0)) * PX_TO_PT;
+      const pdfY = pageHeight - textTopPt - fontSizePt;
+
+      page.drawText(layer.text, {
+        x: layer.x * PX_TO_PT,
+        y: pdfY,
+        size: fontSizePt,
+        lineHeight: lineHeightPt,
+        font,
+        color: rgb(layer.color[0] / 255, layer.color[1] / 255, layer.color[2] / 255),
+      });
     });
 
-    doc.addImage(imgDataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    doc.save(`${filename}.pdf`);
+    const finalPdfBytes = await pdfDoc.save();
+    const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
+    triggerDownload(blob, `${filename}.pdf`);
 
-    return result;
+    return {
+      vector: true,
+      exportBox,
+      textLayerCount: textLayers.length,
+      embeddedFonts: 2,
+    };
   }
 
   return {

@@ -4,6 +4,22 @@
    特性: 暗色/亮色主题、玻璃拟态、粒子背景、微交互动画
    ============================ */
 
+@font-face {
+  font-family: 'LXGW WenKai Lite';
+  src: url('assets/fonts/LXGWWenKaiLite-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'LXGW WenKai Lite';
+  src: url('assets/fonts/LXGWWenKaiLite-Medium.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+}
+
 /* ------------------------------------
    1. CSS 变量 & 主题
    ------------------------------------ */
@@ -919,6 +935,11 @@ body {
   /* SVG 渲染品质 */
   text-rendering: optimizeLegibility;
   shape-rendering: geometricPrecision;
+}
+
+#markmapSvg,
+#markmapSvg foreignObject div {
+  font-family: 'LXGW WenKai Lite', 'Noto Sans SC', 'PingFang SC', sans-serif;
 }
 
 /* markmap 内部节点动画优化 */
