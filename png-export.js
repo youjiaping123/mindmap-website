@@ -503,8 +503,9 @@ const PngExport = (() => {
       textLayers: absoluteTextLayers,
     });
 
-    const pdfDoc = await PDFDocument.load(geometryPdfBytes);
+    const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(window.fontkit);
+    const [geometryPage] = await pdfDoc.embedPdf(geometryPdfBytes, [0]);
 
     const [normalFontBytes, boldFontBytes] = await Promise.all([
       loadFontBytes(VECTOR_PDF_FONT.normalUrl),
@@ -512,7 +513,13 @@ const PngExport = (() => {
     ]);
     const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: true });
     const boldFont = await pdfDoc.embedFont(boldFontBytes, { subset: true });
-    const page = pdfDoc.getPages()[0];
+    const page = pdfDoc.addPage([geometryPage.width, geometryPage.height]);
+    page.drawPage(geometryPage, {
+      x: 0,
+      y: 0,
+      width: geometryPage.width,
+      height: geometryPage.height,
+    });
     const pageHeight = page.getHeight();
     const PX_TO_PT = 72 / 96;
 
