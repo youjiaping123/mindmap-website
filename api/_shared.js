@@ -16,8 +16,8 @@ export function getOpenAIConfig() {
   const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
   const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
   const sharedMaxTokens = readPositiveIntEnv('OPENAI_MAX_TOKENS');
-  const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens ?? 8192;
-  const chatMaxTokens = readPositiveIntEnv('OPENAI_CHAT_MAX_TOKENS') ?? sharedMaxTokens ?? 4096;
+  const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens;
+  const chatMaxTokens = readPositiveIntEnv('OPENAI_CHAT_MAX_TOKENS') ?? sharedMaxTokens;
 
   return {
     apiKey,
@@ -40,19 +40,24 @@ export function resolveModel(userModel, defaultModel) {
 /**
  * 调用 OpenAI Chat Completions API
  */
-export async function callChatCompletions({ baseUrl, apiKey, model, messages, temperature = 0.7, maxTokens = 4096 }) {
+export async function callChatCompletions({ baseUrl, apiKey, model, messages, temperature = 0.7, maxTokens = null }) {
+  const payload = {
+    model,
+    temperature,
+    messages,
+  };
+
+  if (Number.isFinite(maxTokens) && maxTokens > 0) {
+    payload.max_tokens = maxTokens;
+  }
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      temperature,
-      max_tokens: maxTokens,
-      messages,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -70,20 +75,25 @@ export async function callChatCompletions({ baseUrl, apiKey, model, messages, te
  * 调用 OpenAI Chat Completions API（流式）
  * 返回 ReadableStream（来自 fetch response.body）
  */
-export async function callChatCompletionsStream({ baseUrl, apiKey, model, messages, temperature = 0.7, maxTokens = 4096 }) {
+export async function callChatCompletionsStream({ baseUrl, apiKey, model, messages, temperature = 0.7, maxTokens = null }) {
+  const payload = {
+    model,
+    temperature,
+    messages,
+    stream: true,
+  };
+
+  if (Number.isFinite(maxTokens) && maxTokens > 0) {
+    payload.max_tokens = maxTokens;
+  }
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      temperature,
-      max_tokens: maxTokens,
-      messages,
-      stream: true,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

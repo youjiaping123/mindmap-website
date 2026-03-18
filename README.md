@@ -229,6 +229,29 @@ vercel dev- PNG 导出为 2x 分辨率，适合打印和分享
 
 - API Key 通过 Vercel 环境变量设置，**不会**暴露在前端代码中
 - 支持任何 OpenAI 兼容 API（DeepSeek、Moonshot、Claude 等）
+- 默认**不传** `max_tokens`，不会在项目侧硬性限制输出长度
+- 如需手动限制输出，可设置 `OPENAI_MAX_TOKENS`
+- 如需分别限制生成/对话，可设置 `OPENAI_GENERATE_MAX_TOKENS` 和 `OPENAI_CHAT_MAX_TOKENS`
+- 如果上游模型自身达到输出上限，前端会根据 `finish_reason` 提示结果可能被截断
 - .xmind 文件兼容 Xmind Zen / Xmind 2020+
 - PNG 导出为 2x 分辨率，适合打印和分享
 - 历史记录存储在浏览器 localStorage，最多保留 50 条
+
+## Token 输出限制
+
+项目当前的默认行为：
+
+- 不主动传 `max_tokens`
+- 由上游模型服务自行决定单次最大输出
+
+可选环境变量：
+
+- `OPENAI_MAX_TOKENS`: 同时作用于生成接口和对话接口
+- `OPENAI_GENERATE_MAX_TOKENS`: 只作用于 `/api/generate`
+- `OPENAI_CHAT_MAX_TOKENS`: 只作用于 `/api/chat`
+
+优先级：
+
+- `OPENAI_GENERATE_MAX_TOKENS` / `OPENAI_CHAT_MAX_TOKENS`
+- `OPENAI_MAX_TOKENS`
+- 都不设置时，不传 `max_tokens`
