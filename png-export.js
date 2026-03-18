@@ -384,13 +384,25 @@ const PngExport = (() => {
 
   async function loadFontBytes(url) {
     if (!fontBytesCache.has(url)) {
-      const promise = fetch(url)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('中文字体资源加载失败');
-          }
-          return response.arrayBuffer();
-        });
+      const resolvedUrl = new URL(url, document.baseURI).href;
+      const promise = Promise.resolve().then(async () => {
+        if (window.location.protocol === 'file:') {
+          throw new Error('PDF 导出需要通过 http:// 或 https:// 访问页面，直接打开本地 HTML 时浏览器会阻止读取字体文件');
+        }
+
+        let response;
+        try {
+          response = await fetch(resolvedUrl, { cache: 'force-cache' });
+        } catch (error) {
+          throw new Error(`中文字体资源请求失败: ${resolvedUrl}`);
+        }
+
+        if (!response.ok) {
+          throw new Error(`中文字体资源加载失败: ${response.status} ${response.statusText} (${resolvedUrl})`);
+        }
+
+        return response.arrayBuffer();
+      });
       fontBytesCache.set(url, promise);
     }
 
