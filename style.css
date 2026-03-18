@@ -855,6 +855,14 @@ body {
   box-shadow: 0 6px 20px rgba(231, 76, 60, 0.35);
 }
 
+.svg-btn {
+  background: linear-gradient(135deg, #0ea5e9, #0369a1);
+}
+
+.svg-btn:hover {
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35);
+}
+
 /* ------------------------------------
    9. 内容区域
    ------------------------------------ */

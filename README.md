@@ -1,257 +1,520 @@
-# AI 思维导图生成器# AI 思维导图生成器
+# ZevenAI Mindmap
 
+一个面向中文场景的 AI 思维导图网站。输入主题后，服务端调用 OpenAI 兼容模型生成 Markdown 大纲，前端将其流式渲染为可交互的思维导图，并支持对话式修改、历史记录、Xmind 导出、JPEG 导出和 PDF 导出。
 
+项目采用“静态前端 + Vercel Serverless Functions”结构，不需要传统前端构建流程。页面资源直接由 `index.html` 和浏览器端脚本驱动，AI 请求通过 `/api/*` 代理完成，避免在前端暴露密钥。
 
-输入主题，AI 自动生成思维导图。支持模型选择、预设风格、对话式修改、历史记录、在线预览、下载 .xmind 和 PNG。输入主题，AI 自动生成思维导图。支持在线预览、下载 .xmind 文件和 PNG 图片。
+## 预览
 
+- AI 流式生成 Markdown 思维导图
+- Markmap 实时渲染与缩放/拖拽
+- 对话式局部修改导图
+- 多版本并行生成
+- 历史记录持久化
+- 导出 `.xmind` / `.jpg` / `.pdf`
 
+## 核心特性
 
-## ✨ 功能特性## 技术栈
+### 1. AI 生成
 
+- 输入任意主题，一键生成结构化思维导图
+- 服务端支持 OpenAI 兼容 API，不绑定单一厂商
+- 支持切换模型，前端可动态加载可用模型列表
+- 支持流式输出，用户可以在结果尚未完成时看到导图持续展开
 
+### 2. 提示词控制
 
-- 🤖 **AI 生成** - 输入主题一键生成结构化思维导图- **AI**: [OpenAI API](https://platform.openai.com/) (GPT-4o)
+- 内置 `简洁`、`详尽`、`创意` 三种预设风格
+- 支持完全自定义系统提示词
+- 支持查看和回填默认提示词
+- 手动输入提示词时有限制长度，预设模式可承载更长内容
 
-- 🎯 **风格预设** - 简洁 / 详尽 / 创意 三种预设提示词风格- **思维导图渲染**: [Markmap](https://markmap.js.org/) (Markdown → SVG)
+### 3. 多版本生成
 
-- 📝 **自定义提示词** - 支持完全自定义 AI 系统提示词- **.xmind 导出**: [JSZip](https://stuk.github.io/jszip/) (生成 Xmind 兼容文件)
+- 可一次生成 1 到 5 个版本
+- 第一个版本采用流式预览，优先保证交互反馈
+- 额外版本在后台并行生成
+- 生成完成后支持通过标签切换不同版本
 
-- 💬 **对话修改** - 通过自然语言对话局部修改节点（展开/删除/重命名/插入/替换）- **PNG 导出**: SVG → Canvas → PNG
+### 4. 可视化交互
 
-- 📜 **历史记录** - 自动保存到 localStorage，随时回看- **部署**: [Vercel](https://vercel.com) (免费静态托管 + Serverless Functions)
+- 基于 Markmap 将 Markdown 标题转换为思维导图
+- 支持缩放、拖动、自适应视口
+- 支持全屏查看
+- 支持节点右键操作
+  - 编辑节点文本
+  - 删除节点及其子树
 
-- 🤖 **模型选择** - 自动获取可用模型列表
+### 5. 对话式修改
 
-- 📥 **多格式导出** - 下载 .xmind 文件或高清 PNG 图片## 项目结构
+- 在已有导图基础上通过自然语言继续编辑
+- 修改模式采用“AI 返回 JSON 操作指令，前端执行局部更新”的方式
+- 支持的操作包括：
+  - `expand`
+  - `delete`
+  - `rename`
+  - `insert`
+  - `replace`
+- 对话中也支持普通问答，不必每次都触发修改
 
-- 📱 **响应式设计** - 适配桌面端和移动端
+### 6. 导出能力
 
-```
+- 导出 `.xmind`
+- 导出高清 `.jpg`
+- 导出 `.pdf`
+- 图片和 PDF 导出基于当前 SVG 图谱生成，适合分享和打印
 
-## 技术栈mindmap-website/
+### 7. 本地历史记录
 
+- 生成结果自动保存在浏览器 `localStorage`
+- 默认最多保留 50 条记录
+- 支持重新载入历史导图
+- 支持单条删除和全部清空
+
+## 技术架构
+
+### 前端
+
+- 原生 HTML / CSS / JavaScript
+- 无构建步骤
+- 浏览器端模块拆分在 `js/` 目录中
+- 第三方运行时依赖通过 CDN 加载
+
+前端主要职责：
+
+- 渲染页面与交互状态
+- 流式消费 SSE
+- 将 Markdown 转换为思维导图
+- 执行 AI 返回的局部修改指令
+- 导出 Xmind / JPEG / PDF
+
+### 后端
+
+- Vercel Serverless Functions
+- 作为 AI 服务代理层
+- 负责：
+  - 校验请求参数
+  - 组装系统提示词和消息
+  - 调用 OpenAI 兼容接口
+  - 将上游 SSE 原样转发给前端
+
+### AI 接口模式
+
+项目当前使用的是 OpenAI 兼容的 `chat/completions` 接口，并支持：
+
+- 标准非流式调用
+- 标准 SSE 流式调用
+- 模型列表拉取
+- 自定义 `baseUrl`
+- 自定义默认模型
+
+## 页面与数据流
+
+### 生成流程
+
+1. 用户输入主题
+2. 前端向 `/api/generate` 发起请求
+3. Serverless Function 调用上游模型
+4. 上游 SSE 数据通过服务端转发到浏览器
+5. 前端一边累积 Markdown，一边节流刷新 Markmap
+6. 最终结果写入当前状态，并保存到历史记录
+
+### 对话修改流程
+
+1. 用户提交对话消息
+2. 前端向 `/api/chat` 发送当前 Markdown 与对话历史
+3. AI 判断当前请求属于：
+   - 局部修改
+   - 普通聊天
+4. 如果返回 JSON 操作指令，前端执行局部更新
+5. 如果返回普通文本，则仅作为聊天回复显示
+
+## 技术栈
+
+### 核心库
+
+- [Markmap](https://markmap.js.org/)：Markdown 思维导图渲染
+- [D3](https://d3js.org/)：Markmap 依赖
+- [JSZip](https://stuk.github.io/jszip/)：生成 `.xmind`
+- [jsPDF](https://github.com/parallax/jsPDF)：导出 PDF
+
+### 运行平台
+
+- Node.js `>=18`
+- Vercel Functions
+- 现代浏览器
+
+### AI 服务
+
+- OpenAI 官方接口
+- 或任意 OpenAI 兼容接口
+
+常见兼容场景：
+
+- OpenAI
+- DeepSeek
+- Moonshot
+- 其他支持 OpenAI 风格 `chat/completions` 的服务
+
+## 目录结构
+
+```text
+mindmap-website/
 ├── api/
-
-- **AI**: [OpenAI 兼容 API](https://platform.openai.com/) (GPT-4o / DeepSeek / 等)│   └── generate.js       # Vercel Serverless Function (调用 OpenAI API)
-
-- **思维导图渲染**: [Markmap](https://markmap.js.org/) (Markdown → SVG)├── index.html            # 主页面
-
-- **.xmind 导出**: [JSZip](https://stuk.github.io/jszip/)├── style.css             # 样式
-
-- **PNG 导出**: SVG → Canvas → PNG├── app.js                # 主逻辑 (渲染、交互)
-
-- **部署**: [Vercel](https://vercel.com) (静态托管 + Serverless Functions)├── xmind-export.js       # .xmind 文件生成模块
-
-├── png-export.js         # PNG 图片导出模块
-
-## 项目结构├── vercel.json           # Vercel 配置
-
-├── package.json
-
-```└── README.md
-
-mindmap-website/```
-
-├── api/                    # Vercel Serverless Functions
-
-│   ├── _shared.js          # 公共配置与工具函数## 部署步骤
-
-│   ├── generate.js         # 生成思维导图 API
-
-│   ├── chat.js             # 对话修改 API (JSON patch 模式)### 1. 部署到 Vercel
-
-│   └── models.js           # 获取可用模型列表 API
-
-├── js/                     # 前端模块化 JS#### 方式 A: 使用 Vercel CLI
-
-│   ├── constants.js        # 全局常量与默认提示词
-
-│   ├── utils.js            # 通用工具函数```bash
-
-│   ├── state.js            # 全局应用状态# 安装 Vercel CLI
-
-│   ├── ui.js               # UI 工具函数 (加载状态、错误提示、Tab切换)npm i -g vercel
-
-│   ├── markmap.js          # Markmap 渲染
-
-│   ├── markdown-engine.js  # Markdown 局部操作引擎 (5种操作)# 进入项目目录
-
-│   ├── history.js          # 历史记录管理 (localStorage)cd mindmap-website
-
-│   ├── models.js           # 模型列表加载
-
-│   ├── presets.js          # 预设提示词风格# 部署
-
-│   ├── prompt.js           # 自定义提示词管理vercel
-
-│   ├── chat.js             # 对话式修改功能
-
-│   ├── download.js         # 下载功能 (xmind / PNG)# 设置环境变量
-
-│   ├── generate.js         # 核心生成流程vercel env add OPENAI_API_KEY   # 粘贴你的 OpenAI API Key
-
-│   └── main.js             # 入口 - 事件监听与初始化
-
-├── index.html              # 主页面# 可选：自定义模型或使用兼容 API
-
-├── style.css               # 样式表 (CSS 变量 + 响应式)# vercel env add OPENAI_BASE_URL  # 默认 https://api.openai.com/v1
-
-├── xmind-export.js         # .xmind 文件生成模块# vercel env add OPENAI_MODEL     # 默认 gpt-4o
-
-├── png-export.js           # PNG 图片导出模块
-
-├── vercel.json             # Vercel 路由与安全头配置# 重新部署使环境变量生效
-
-├── package.jsonvercel --prod
-
-└── README.md```
-
+│   ├── _shared.js        # AI 调用公共逻辑、默认配置、SSE 转发
+│   ├── chat.js           # 对话式局部修改接口
+│   ├── generate.js       # 思维导图生成接口
+│   └── models.js         # 模型列表接口
+├── js/
+│   ├── chat.js           # 对话 UI 与 SSE 消费
+│   ├── constants.js      # 全局常量与默认提示词
+│   ├── download.js       # Xmind / JPEG / PDF 下载
+│   ├── generate.js       # 生成主流程与多版本逻辑
+│   ├── history.js        # localStorage 历史记录
+│   ├── main.js           # 页面初始化与全局事件
+│   ├── markdown-engine.js# JSON 操作指令执行引擎
+│   ├── markmap.js        # Markmap 渲染、右键菜单、节点编辑
+│   ├── models.js         # 模型下拉加载
+│   ├── presets.js        # 风格预设
+│   ├── prompt.js         # 自定义提示词面板
+│   ├── state.js          # 全局状态
+│   └── ui.js             # UI 工具函数
+├── index.html            # 主页面
+├── style.css             # 全局样式
+├── png-export.js         # SVG 转 JPEG / PDF
+├── xmind-export.js       # Markdown 转 Xmind
+├── vercel.json           # Vercel 配置
+└── package.json          # 项目元信息
 ```
 
-#### 方式 B: 通过 GitHub
+## 快速开始
 
-## 部署步骤
-
-1. 将 `mindmap-website` 目录推送到 GitHub 仓库
-
-### 方式 A: 使用 Vercel CLI2. 登录 [Vercel](https://vercel.com)，导入该仓库
-
-3. 在 Settings → Environment Variables 中添加:
-
-```bash   - `OPENAI_API_KEY` = 你的 OpenAI API Key
-
-# 安装 Vercel CLI   - `OPENAI_BASE_URL` = (可选) 自定义 API 地址，兼容其他 LLM 服务
-
-npm i -g vercel   - `OPENAI_MODEL` = (可选) 模型名称，默认 `gpt-4o`
-
-4. 触发重新部署
-
-# 进入项目目录
-
-cd mindmap-website### 2. 本地开发
-
-
-
-# 部署```bash
-
-vercel# 安装 Vercel CLI
-
-npm i -g vercel
-
-# 设置环境变量
-
-vercel env add OPENAI_API_KEY   # 粘贴你的 API Key# 进入项目目录
-
-cd mindmap-website
-
-# 可选：自定义模型或使用兼容 API
-
-# vercel env add OPENAI_BASE_URL  # 默认 https://api.openai.com/v1# 创建 .env 文件
-
-# vercel env add OPENAI_MODEL     # 默认 gpt-4oecho "OPENAI_API_KEY=sk-your-key-here" > .env
-
-
-
-# 重新部署使环境变量生效# 启动本地开发服务器
-
-vercel --prodvercel dev
-
-``````
-
-
-
-### 方式 B: 通过 GitHub访问 http://localhost:3000 即可使用。
-
-
-
-1. 将项目推送到 GitHub 仓库## 使用流程
-
-2. 登录 [Vercel](https://vercel.com)，导入该仓库
-
-3. 在 Settings → Environment Variables 中添加:1. 在输入框输入思维导图主题（如「人工智能」「项目管理」）
-
-   - `OPENAI_API_KEY` = 你的 API Key2. 点击「✨ 生成思维导图」
-
-   - `OPENAI_BASE_URL` = (可选) 自定义 API 地址3. AI 生成后自动在页面上渲染思维导图预览
-
-   - `OPENAI_MODEL` = (可选) 模型名称，默认 `gpt-4o`4. 可以缩放、拖动查看
-
-4. 触发重新部署5. 点击「📥 下载 .xmind」获取 Xmind 文件（用 Xmind 软件打开）
-
-6. 点击「🖼️ 下载 PNG」获取高清图片
-
-### 本地开发
-
-## 注意事项
+### 1. 克隆项目
 
 ```bash
-
-# 创建 .env 文件- OpenAI API Key 通过 Vercel 环境变量设置，**不会**暴露在前端代码中
-
-echo "OPENAI_API_KEY=sk-your-key-here" > .env- Serverless Function (`api/generate.js`) 作为安全代理
-
-- 支持任何 OpenAI 兼容 API（如 DeepSeek、Moonshot 等），只需修改 `OPENAI_BASE_URL` 和 `OPENAI_MODEL`
-
-# 启动本地开发服务器- .xmind 文件兼容 Xmind Zen / Xmind 2020+
-
-vercel dev- PNG 导出为 2x 分辨率，适合打印和分享
-
+git clone <your-repo-url>
+cd mindmap-website
 ```
 
-访问 http://localhost:3000 即可使用。
+### 2. 安装 Vercel CLI
 
-## 使用流程
+```bash
+npm i -g vercel
+```
 
-1. 选择 AI 模型，输入思维导图主题
-2. (可选) 选择风格预设或自定义提示词
-3. 点击「✨ 生成思维导图」
-4. AI 生成后自动渲染预览，支持缩放和拖动
-5. 使用「💬 对话修改」功能局部调整节点
-6. 下载 .xmind 或 PNG 格式文件
+### 3. 配置环境变量
 
-## 架构说明
+最少需要配置：
 
-### 对话修改 (JSON Patch 模式)
+```bash
+vercel env add OPENAI_API_KEY
+```
 
-对话修改采用 **局部操作** 而非全量重写，AI 返回 JSON 操作指令，前端引擎执行局部修改：
+可选配置：
 
-| 操作 | 说明 |
-|------|------|
-| `expand` | 在目标节点下插入子节点 |
-| `delete` | 删除节点及其所有子节点 |
-| `rename` | 重命名节点 |
-| `insert` | 在目标节点后插入同级节点 |
-| `replace` | 替换节点及其子树 |
+```bash
+vercel env add OPENAI_BASE_URL
+vercel env add OPENAI_MODEL
+vercel env add OPENAI_MODELS
+vercel env add OPENAI_MAX_TOKENS
+vercel env add OPENAI_GENERATE_MAX_TOKENS
+vercel env add OPENAI_CHAT_MAX_TOKENS
+```
 
-节点匹配使用三级模糊匹配：精确匹配 → 包含匹配 → 反向包含（忽略 emoji）。
+### 4. 本地运行
 
-## 注意事项
+```bash
+vercel dev
+```
 
-- API Key 通过 Vercel 环境变量设置，**不会**暴露在前端代码中
-- 支持任何 OpenAI 兼容 API（DeepSeek、Moonshot、Claude 等）
-- 默认**不传** `max_tokens`，不会在项目侧硬性限制输出长度
-- 如需手动限制输出，可设置 `OPENAI_MAX_TOKENS`
-- 如需分别限制生成/对话，可设置 `OPENAI_GENERATE_MAX_TOKENS` 和 `OPENAI_CHAT_MAX_TOKENS`
-- 如果上游模型自身达到输出上限，前端会根据 `finish_reason` 提示结果可能被截断
-- .xmind 文件兼容 Xmind Zen / Xmind 2020+
-- PNG 导出为 2x 分辨率，适合打印和分享
-- 历史记录存储在浏览器 localStorage，最多保留 50 条
+默认访问地址通常为：
 
-## Token 输出限制
+```text
+http://localhost:3000
+```
 
-项目当前的默认行为：
+### 5. 生产部署
 
-- 不主动传 `max_tokens`
-- 由上游模型服务自行决定单次最大输出
+```bash
+vercel --prod
+```
 
-可选环境变量：
+## 环境变量说明
 
-- `OPENAI_MAX_TOKENS`: 同时作用于生成接口和对话接口
-- `OPENAI_GENERATE_MAX_TOKENS`: 只作用于 `/api/generate`
-- `OPENAI_CHAT_MAX_TOKENS`: 只作用于 `/api/chat`
+| 变量名 | 必填 | 说明 |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | 是 | 上游模型服务的 API Key |
+| `OPENAI_BASE_URL` | 否 | OpenAI 兼容接口地址，默认 `https://api.openai.com/v1` |
+| `OPENAI_MODEL` | 否 | 默认模型名，默认值为 `claude-sonnet-4-6` |
+| `OPENAI_MODELS` | 否 | 手动指定模型列表，逗号分隔，适合某些不支持模型枚举的兼容服务 |
+| `OPENAI_MAX_TOKENS` | 否 | 统一设置生成与对话的输出上限 |
+| `OPENAI_GENERATE_MAX_TOKENS` | 否 | 单独设置 `/api/generate` 的输出上限 |
+| `OPENAI_CHAT_MAX_TOKENS` | 否 | 单独设置 `/api/chat` 的输出上限 |
 
-优先级：
+### 关于 `max_tokens`
 
-- `OPENAI_GENERATE_MAX_TOKENS` / `OPENAI_CHAT_MAX_TOKENS`
-- `OPENAI_MAX_TOKENS`
-- 都不设置时，不传 `max_tokens`
+项目当前默认行为：
+
+- 默认不主动传 `max_tokens`
+- 不在项目侧硬编码限制输出长度
+- 由上游模型或服务商自行决定单次最大输出
+
+优先级如下：
+
+1. `OPENAI_GENERATE_MAX_TOKENS` / `OPENAI_CHAT_MAX_TOKENS`
+2. `OPENAI_MAX_TOKENS`
+3. 如果都未配置，则请求中不传 `max_tokens`
+
+### 关于模型列表
+
+`/api/models` 的行为如下：
+
+- 如果设置了 `OPENAI_MODELS`，直接使用该列表
+- 否则尝试从上游拉取模型列表
+- 如果拉取失败，回退到单个默认模型
+
+建议：
+
+- 如果你使用的兼容服务不稳定或不支持模型列表接口，直接设置 `OPENAI_MODELS`
+- 这样前端模型下拉框会更稳定
+
+示例：
+
+```bash
+OPENAI_MODELS=gpt-4o,gpt-4o-mini,deepseek-chat
+```
+
+## API 说明
+
+### `POST /api/generate`
+
+生成思维导图大纲并以 SSE 形式返回。
+
+请求体示例：
+
+```json
+{
+  "topic": "人工智能",
+  "model": "gpt-4o",
+  "customPrompt": "",
+  "temperature": 0.7
+}
+```
+
+主要特点：
+
+- 流式输出
+- 支持自定义模型
+- 支持自定义提示词
+- 支持多版本生成时的不同温度参数
+
+### `POST /api/chat`
+
+在现有思维导图基础上执行对话式修改，或进行普通聊天。
+
+请求体示例：
+
+```json
+{
+  "currentMarkdown": "# 人工智能\n## 机器学习",
+  "message": "展开机器学习节点",
+  "model": "gpt-4o-mini",
+  "history": []
+}
+```
+
+AI 回复模式：
+
+- 修改模式：返回 JSON 操作数组
+- 聊天模式：返回普通自然语言文本
+
+### `GET /api/models`
+
+获取模型列表，用于填充前端下拉框。
+
+响应示例：
+
+```json
+{
+  "success": true,
+  "models": ["gpt-4o", "gpt-4o-mini"],
+  "default": "gpt-4o"
+}
+```
+
+## 前端模块说明
+
+### `js/generate.js`
+
+负责：
+
+- 发起生成请求
+- 消费 SSE
+- 节流更新思维导图
+- 管理多版本结果
+
+### `js/chat.js`
+
+负责：
+
+- 对话输入与消息列表
+- 读取流式回复
+- 判断回复是否为 JSON 操作指令
+- 执行导图局部修改或显示普通聊天结果
+
+### `js/markmap.js`
+
+负责：
+
+- 首次渲染 Markmap
+- 增量更新导图
+- 右键菜单
+- 节点编辑与删除
+- 动画曲线优化
+
+### `js/markdown-engine.js`
+
+负责执行 AI 返回的操作指令，是“对话修改”功能的核心执行层。
+
+### `js/history.js`
+
+负责：
+
+- 历史记录持久化
+- 加载已有导图
+- 删除单条记录
+- 清空全部记录
+
+### `xmind-export.js`
+
+负责将 Markdown 标题结构解析为树，再生成符合 Xmind 新版格式的 `.xmind` 压缩包。
+
+### `png-export.js`
+
+负责：
+
+- 将 SVG 转换为高清 JPEG
+- 内联样式以保证导出结果与页面一致
+- 进一步封装为 PDF 文件
+
+## 导出说明
+
+### Xmind
+
+- 根据 Markdown 结构生成节点树
+- 输出 `.xmind` 压缩包
+- 包含 `content.json`、`content.xml`、`metadata.json`、`manifest.json`
+
+### JPEG
+
+- 将 SVG 克隆后导出为白底 JPEG
+- 默认高倍率导出，适合社交平台和文档嵌入
+
+### PDF
+
+- 先生成高清 JPEG
+- 再使用 `jsPDF` 封装为单页 PDF
+
+## UI 与交互设计
+
+项目当前包含以下交互层：
+
+- 深浅主题切换
+- 粒子背景
+- Hero 首屏
+- 历史记录侧边栏
+- 版本切换标签
+- 全屏预览
+- 节点右键编辑
+- 对话消息区
+- Toast 通知系统
+
+这些能力全部由原生前端脚本维护，不依赖 React、Vue 等框架。
+
+## 部署到 Vercel
+
+### 方式一：CLI
+
+```bash
+npm i -g vercel
+vercel
+vercel env add OPENAI_API_KEY
+vercel --prod
+```
+
+### 方式二：GitHub 导入
+
+1. 将仓库推送到 GitHub
+2. 在 Vercel 中导入该仓库
+3. 在项目设置中添加环境变量
+4. 触发部署
+
+推荐至少添加：
+
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL`
+
+如果是兼容服务，建议额外添加：
+
+- `OPENAI_MODELS`
+
+## 常见问题
+
+### 1. 页面能打开，但生成失败
+
+优先检查：
+
+- `OPENAI_API_KEY` 是否已配置
+- `OPENAI_BASE_URL` 是否正确
+- 上游服务是否兼容 `chat/completions`
+- 所选模型是否真实可用
+
+### 2. 模型列表加载失败
+
+可能原因：
+
+- 上游不支持模型枚举接口
+- 接口地址不兼容
+- 认证失败
+
+解决建议：
+
+- 直接设置 `OPENAI_MODELS`
+- 或只使用 `OPENAI_MODEL` 作为默认模型
+
+### 3. 输出被截断
+
+项目现在默认不在本地强制传 `max_tokens`。如果仍被截断，通常是：
+
+- 上游模型自身达到了输出上限
+- 上游服务做了兼容层限制
+- 内容过滤或服务端提前结束
+
+前端会根据上游的 `finish_reason` 给出提示。
+
+### 4. 为什么没有打包构建命令
+
+因为项目当前采用原生前端结构：
+
+- 页面由 `index.html` 直接加载
+- 业务脚本由 `js/*.js` 直接运行
+- 服务端逻辑由 `api/*.js` 提供
+
+这让部署更轻，但也意味着你需要手动维护模块边界和加载顺序。
+
+## 维护建议
+
+如果你准备继续迭代这个项目，建议优先关注以下方向：
+
+- README 中提到的环境变量与代码实现保持同步
+- 继续整理 API 兼容性边界
+- 为 `README` 中的接口示例补充真实响应样例
+- 增加基础测试，特别是：
+  - Markdown 操作引擎
+  - SSE 解析
+  - Xmind 导出结构
+
+## 许可证
+
+当前仓库未声明许可证。如需开源分发，建议补充 `LICENSE` 文件。

@@ -1,89 +1,55 @@
 /**
- * 图片导出模块
+ * 导出模块
  *
- * 将 SVG 思维导图导出为 JPEG 图片或矢量 PDF
+ * 提供 PNG、SVG、PDF 导出：
+ * - PNG: 无损位图，适合普通分享
+ * - SVG: 矢量图，适合大图和后续编辑
+ * - PDF: 基于 PNG 的高保真单页 PDF
  */
 
 const PngExport = (() => {
+  const EXPORT_LIMITS = {
+    maxCanvasDimension: 16384,
+    maxCanvasArea: 120000000,
+  };
 
-  /**
-   * 将 SVG 元素导出为 JPEG Blob
-   * JPEG 相比 PNG：体积缩小 90%+，微信/QQ 等全平台兼容，白底思维导图肉眼无差别
-   * @param {SVGElement} svgElement - SVG DOM 元素
-   * @param {object} options - 选项
-   * @returns {Promise<Blob>}
-   */
-  async function svgToImageBlob(svgElement, options = {}) {
-    const {
-      scale = 6,           // 6x 分辨率（高清，JPEG 压缩后体积仍可控）
-      padding = 40,        // 四周留白
-      backgroundColor = '#ffffff',
-      quality = 0.95,      // JPEG 质量（0.95 接近无损，文字更锐利）
-    } = options;
-
-    // 克隆 SVG 以避免修改原始元素
-    const clonedSvg = svgElement.cloneNode(true);
-
-    // 获取实际内容的边界框
+  function getExportBox(svgElement, padding = 40) {
     const bbox = svgElement.getBBox();
-
     const width = bbox.width + padding * 2;
     const height = bbox.height + padding * 2;
 
-    // 设置 viewBox 使内容居中
-    clonedSvg.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
-    clonedSvg.setAttribute('width', width * scale);
-    clonedSvg.setAttribute('height', height * scale);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error('思维导图尚未完成渲染，请稍后再试');
+    }
 
-    // 内联所有计算样式
-    inlineStyles(svgElement, clonedSvg);
-
-    // 添加白色背景矩形
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('x', bbox.x - padding);
-    bgRect.setAttribute('y', bbox.y - padding);
-    bgRect.setAttribute('width', width);
-    bgRect.setAttribute('height', height);
-    bgRect.setAttribute('fill', backgroundColor);
-    clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
-
-    // SVG → Data URL
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(clonedSvg);
-    const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
-
-    // Data URL → Canvas → PNG Blob
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-        const ctx = canvas.getContext('2d');
-
-        // 白色背景
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 绘制 SVG
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob(blob => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to create JPEG'));
-          }
-        }, 'image/jpeg', quality);
-      };
-      img.onerror = () => reject(new Error('Failed to load SVG'));
-      img.src = svgDataUrl;
-    });
+    return {
+      x: bbox.x - padding,
+      y: bbox.y - padding,
+      width,
+      height,
+    };
   }
 
-  /**
-   * 递归内联样式，确保 SVG 导出后样式正确
-   */
+  function getSafeScale(width, height, requestedScale, options = {}) {
+    const maxCanvasDimension = options.maxCanvasDimension || EXPORT_LIMITS.maxCanvasDimension;
+    const maxCanvasArea = options.maxCanvasArea || EXPORT_LIMITS.maxCanvasArea;
+
+    const scaleByDimension = Math.min(
+      maxCanvasDimension / width,
+      maxCanvasDimension / height,
+    );
+    const scaleByArea = Math.sqrt(maxCanvasArea / (width * height));
+
+    const safeScale = Math.max(1, Math.min(requestedScale, scaleByDimension, scaleByArea));
+    const actualScale = Math.round(safeScale * 100) / 100;
+
+    return {
+      requestedScale,
+      actualScale,
+      limited: actualScale + 0.01 < requestedScale,
+    };
+  }
+
   function inlineStyles(original, clone) {
     const originalChildren = original.children;
     const cloneChildren = clone.children;
@@ -94,81 +60,220 @@ const PngExport = (() => {
 
       if (origChild instanceof Element) {
         const computedStyle = window.getComputedStyle(origChild);
-
-        // 内联所有关键样式属性（增加更多属性以提高保真度）
         const importantProps = [
-          'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity',
-          'opacity', 'fill-opacity',
+          'fill', 'fill-opacity',
+          'stroke', 'stroke-width', 'stroke-opacity', 'stroke-dasharray',
+          'stroke-linecap', 'stroke-linejoin',
+          'opacity', 'visibility', 'display',
           'font-family', 'font-size', 'font-weight', 'font-style',
-          'text-anchor', 'dominant-baseline', 'text-decoration', 'color',
-          'letter-spacing', 'word-spacing',
+          'text-anchor', 'dominant-baseline', 'text-decoration',
+          'letter-spacing', 'word-spacing', 'paint-order',
+          'shape-rendering', 'vector-effect', 'color',
         ];
 
         for (const prop of importantProps) {
           const value = computedStyle.getPropertyValue(prop);
-          if (value && value !== '' && value !== 'none' && value !== 'normal' && value !== '0px') {
+          if (value && value !== '' && value !== 'normal' && value !== 'none') {
             cloneChild.style.setProperty(prop, value);
           }
         }
 
-        // 递归子元素
         inlineStyles(origChild, cloneChild);
       }
     }
   }
 
-  /**
-   * 触发下载 JPEG 图片
-   * @param {SVGElement} svgElement - SVG DOM 元素
-   * @param {string} filename - 文件名（不含扩展名）
-   * @param {object} options - 导出选项
-   */
-  async function download(svgElement, filename, options = {}) {
-    const blob = await svgToImageBlob(svgElement, options);
+  function createStandaloneSvgString(svgElement, options = {}) {
+    const {
+      padding = 40,
+      backgroundColor = '#ffffff',
+      width,
+      height,
+    } = options;
+
+    const exportBox = getExportBox(svgElement, padding);
+    const clonedSvg = svgElement.cloneNode(true);
+
+    inlineStyles(svgElement, clonedSvg);
+
+    clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    clonedSvg.setAttribute('viewBox', `${exportBox.x} ${exportBox.y} ${exportBox.width} ${exportBox.height}`);
+    clonedSvg.setAttribute('width', width || exportBox.width);
+    clonedSvg.setAttribute('height', height || exportBox.height);
+    clonedSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    if (backgroundColor) {
+      const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bgRect.setAttribute('x', exportBox.x);
+      bgRect.setAttribute('y', exportBox.y);
+      bgRect.setAttribute('width', exportBox.width);
+      bgRect.setAttribute('height', exportBox.height);
+      bgRect.setAttribute('fill', backgroundColor);
+      clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
+    }
+
+    const serializer = new XMLSerializer();
+    return {
+      svgString: serializer.serializeToString(clonedSvg),
+      exportBox,
+    };
+  }
+
+  async function svgStringToImageBlob(svgString, width, height, options = {}) {
+    const {
+      mimeType = 'image/png',
+      quality = 0.95,
+      backgroundColor = '#ffffff',
+    } = options;
+
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(svgUrl);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          reject(new Error('浏览器不支持 Canvas 导出'));
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('导出图片失败'));
+          }
+        }, mimeType, quality);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        reject(new Error('SVG 渲染失败'));
+      };
+
+      img.src = svgUrl;
+    });
+  }
+
+  async function svgToImageBlob(svgElement, options = {}) {
+    const {
+      scale = 4,
+      padding = 40,
+      backgroundColor = '#ffffff',
+      quality = 0.95,
+      mimeType = 'image/png',
+    } = options;
+
+    const { svgString, exportBox } = createStandaloneSvgString(svgElement, {
+      padding,
+      backgroundColor,
+    });
+    const { actualScale, limited, requestedScale } = getSafeScale(exportBox.width, exportBox.height, scale, options);
+    const outputWidth = Math.max(1, Math.round(exportBox.width * actualScale));
+    const outputHeight = Math.max(1, Math.round(exportBox.height * actualScale));
+
+    const rasterizedSvg = createStandaloneSvgString(svgElement, {
+      padding,
+      backgroundColor,
+      width: outputWidth,
+      height: outputHeight,
+    });
+
+    const blob = await svgStringToImageBlob(
+      rasterizedSvg.svgString,
+      outputWidth,
+      outputHeight,
+      { mimeType, quality, backgroundColor },
+    );
+
+    return {
+      blob,
+      svgString,
+      exportBox,
+      outputWidth,
+      outputHeight,
+      requestedScale,
+      actualScale,
+      limited,
+    };
+  }
+
+  function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}.jpg`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  /**
-   * 触发下载高清 PDF（JPEG 位图嵌入，一键下载无需打印对话框）
-   * 复用 svgToImageBlob 生成高清 JPEG，再用 jsPDF 包装成 PDF
-   */
-  async function downloadPdf(svgElement, filename, options = {}) {
-    const {
-      scale = 6,
-      padding = 40,
-      backgroundColor = '#ffffff',
-      quality = 0.95,
-    } = options;
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('读取导出文件失败'));
+      reader.readAsDataURL(blob);
+    });
+  }
 
+  async function download(svgElement, filename, options = {}) {
+    const result = await svgToImageBlob(svgElement, {
+      ...options,
+      mimeType: 'image/png',
+    });
+
+    triggerDownload(result.blob, `${filename}.png`);
+    return result;
+  }
+
+  async function downloadSvg(svgElement, filename, options = {}) {
+    const { svgString } = createStandaloneSvgString(svgElement, options);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    triggerDownload(blob, `${filename}.svg`);
+    return { blob };
+  }
+
+  async function downloadPdf(svgElement, filename, options = {}) {
     if (typeof window.jspdf === 'undefined') {
       throw new Error('PDF 导出库未加载，请刷新页面重试');
     }
 
-    // 复用图片导出逻辑生成 JPEG Blob
-    const blob = await svgToImageBlob(svgElement, { scale, padding, backgroundColor, quality });
+    const {
+      padding = 40,
+      backgroundColor = '#ffffff',
+      quality = 0.98,
+      scale = 4,
+    } = options;
 
-    // Blob → Data URL
-    const imgDataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error('Failed to read image'));
-      reader.readAsDataURL(blob);
+    const result = await svgToImageBlob(svgElement, {
+      scale,
+      padding,
+      backgroundColor,
+      quality,
+      mimeType: 'image/png',
     });
 
-    // 计算 PDF 页面尺寸（mm）
-    const bbox = svgElement.getBBox();
-    const width = bbox.width + padding * 2;
-    const height = bbox.height + padding * 2;
+    const imgDataUrl = await blobToDataUrl(result.blob);
     const PX_TO_MM = 0.264583;
-    const pdfWidth = width * PX_TO_MM;
-    const pdfHeight = height * PX_TO_MM;
+    const pdfWidth = Math.max(10, result.exportBox.width * PX_TO_MM);
+    const pdfHeight = Math.max(10, result.exportBox.height * PX_TO_MM);
     const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
 
     const { jsPDF } = window.jspdf;
@@ -176,11 +281,19 @@ const PngExport = (() => {
       orientation,
       unit: 'mm',
       format: [pdfWidth, pdfHeight],
+      compress: true,
     });
 
-    doc.addImage(imgDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+    doc.addImage(imgDataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
     doc.save(`${filename}.pdf`);
+
+    return result;
   }
 
-  return { download, downloadPdf, svgToImageBlob };
+  return {
+    download,
+    downloadPdf,
+    downloadSvg,
+    svgToImageBlob,
+  };
 })();

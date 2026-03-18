@@ -86,7 +86,7 @@
       <h2 class="hero-title">
         用 AI 创造<br><span class="gradient-text">思维的无限可能</span>
       </h2>
-      <p class="hero-desc">输入任意主题，AI 自动生成结构清晰的思维导图<br>支持在线预览、对话式修改、导出 Xmind 和 PNG</p>
+      <p class="hero-desc">输入任意主题，AI 自动生成结构清晰的思维导图<br>支持在线预览、对话式修改、导出 Xmind、PNG、SVG 和 PDF</p>
     </section>
 
     <!-- 输入区域 -->
@@ -200,9 +200,13 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           PDF
         </button>
+        <button class="export-btn svg-btn" onclick="downloadSvg()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 8l2.5 8L13 8"/><path d="M15.5 8h2a2 2 0 0 1 0 4h-2v4"/><path d="M15.5 12h1.5"/></svg>
+          SVG
+        </button>
         <button class="export-btn png-btn" onclick="downloadPng()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          JPEG
+          PNG
         </button>
       </div>
     </section>
