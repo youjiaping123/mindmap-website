@@ -523,8 +523,8 @@ const PngExport = (() => {
       loadFontBytes(VECTOR_PDF_FONT.normalUrl),
       loadFontBytes(VECTOR_PDF_FONT.boldUrl),
     ]);
-    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: true });
-    const boldFont = await pdfDoc.embedFont(boldFontBytes, { subset: true });
+    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: false });
+    const boldFont = await pdfDoc.embedFont(boldFontBytes, { subset: false });
     const page = pdfDoc.addPage([geometryPage.width, geometryPage.height]);
     page.drawPage(geometryPage, {
       x: 0,
