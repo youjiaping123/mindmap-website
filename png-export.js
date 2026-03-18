@@ -519,12 +519,12 @@ const PngExport = (() => {
     pdfDoc.registerFontkit(window.fontkit);
     const [geometryPage] = await pdfDoc.embedPdf(geometryPdfBytes, [0]);
 
-    const [normalFontBytes, boldFontBytes] = await Promise.all([
-      loadFontBytes(VECTOR_PDF_FONT.normalUrl),
-      loadFontBytes(VECTOR_PDF_FONT.boldUrl),
-    ]);
+    const needsBoldFont = textLayers.some((layer) => layer.fontStyle === 'bold');
+    const normalFontBytes = await loadFontBytes(VECTOR_PDF_FONT.normalUrl);
     const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: false });
-    const boldFont = await pdfDoc.embedFont(boldFontBytes, { subset: false });
+    const boldFont = needsBoldFont
+      ? await loadFontBytes(VECTOR_PDF_FONT.boldUrl).then((bytes) => pdfDoc.embedFont(bytes, { subset: false }))
+      : normalFont;
     const page = pdfDoc.addPage([geometryPage.width, geometryPage.height]);
     page.drawPage(geometryPage, {
       x: 0,
@@ -560,7 +560,7 @@ const PngExport = (() => {
       vector: true,
       exportBox,
       textLayerCount: textLayers.length,
-      embeddedFonts: 2,
+      embeddedFonts: needsBoldFont ? 2 : 1,
     };
   }
 
