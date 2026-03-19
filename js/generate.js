@@ -82,7 +82,7 @@ function clearVersionResults() {
 
 /**
  * 以流式方式消费 SSE 并实时渲染 markmap
- * @returns {Promise<{ content: string, finishReason: string | null }>} 最终结果
+ * @returns {Promise<{ content: string, finishReason: string | null, completedNormally: boolean }>} 最终结果
  */
 async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRender }) {
   const reader = response.body.getReader();
@@ -90,13 +90,18 @@ async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRe
   let buffer = '';
   let accumulated = '';
   let finishReason = null;
+  let sawDone = false;
+  let sseFinished = false;
 
   function consumeLine(line) {
     const delta = parseSSEDelta(line);
     if (!delta) return false;
     if (delta.errorMessage) throw new Error(delta.errorMessage);
     if (delta.finishReason) finishReason = delta.finishReason;
-    if (delta.done) return true;
+    if (delta.done) {
+      sawDone = true;
+      return true;
+    }
 
     if (delta.content) {
       accumulated += delta.content;
@@ -107,7 +112,7 @@ async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRe
     return false;
   }
 
-  while (true) {
+  while (!sseFinished) {
     const { done, value } = await reader.read();
     if (done) break;
 
@@ -118,22 +123,30 @@ async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRe
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      if (consumeLine(trimmed)) break;
+      if (consumeLine(trimmed)) {
+        sseFinished = true;
+        break;
+      }
     }
   }
 
   const trailingLine = buffer.trim();
-  if (trailingLine) consumeLine(trailingLine);
+  if (trailingLine && !sseFinished) {
+    sseFinished = consumeLine(trailingLine);
+  }
+
+  const completedNormally = sawDone || !!finishReason;
 
   return {
     content: accumulated.trim(),
     finishReason,
+    completedNormally,
   };
 }
 
 /**
  * 以非流式方式收集完整结果（用于额外版本的后台生成）
- * @returns {Promise<string>}
+ * @returns {Promise<{ content: string, finishReason: string | null, completedNormally: boolean }>}
  */
 async function _collectFullResponse(topic, selectedModel, customPrompt, temperature, abortSignal) {
   const response = await fetch('/api/generate', {
@@ -155,18 +168,23 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
   let buffer = '';
   let result = '';
   let finishReason = null;
+  let sawDone = false;
+  let sseFinished = false;
 
   function consumeLine(line) {
     const delta = parseSSEDelta(line);
     if (!delta) return false;
     if (delta.errorMessage) throw new Error(delta.errorMessage);
     if (delta.finishReason) finishReason = delta.finishReason;
-    if (delta.done) return true;
+    if (delta.done) {
+      sawDone = true;
+      return true;
+    }
     if (delta.content) result += delta.content;
     return false;
   }
 
-  while (true) {
+  while (!sseFinished) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -175,18 +193,33 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      if (consumeLine(trimmed)) break;
+      if (consumeLine(trimmed)) {
+        sseFinished = true;
+        break;
+      }
     }
   }
 
   const trailingLine = buffer.trim();
-  if (trailingLine) consumeLine(trailingLine);
+  if (trailingLine && !sseFinished) {
+    sseFinished = consumeLine(trailingLine);
+  }
+
+  const completedNormally = sawDone || !!finishReason;
 
   if (finishReason && finishReason !== 'stop') {
     console.warn('后台版本生成提前结束:', finishReason);
   }
 
-  return result.trim();
+  if (!completedNormally) {
+    console.warn('后台版本生成流异常中断，已忽略该版本');
+  }
+
+  return {
+    content: result.trim(),
+    finishReason,
+    completedNormally,
+  };
 }
 
 /* ===== 主生成入口 ===== */
@@ -310,7 +343,7 @@ async function handleGenerate() {
     }
 
     // ===== 消费版本 1 的 SSE 流 =====
-    const { content: finalMd, finishReason } = await _consumeSSEStream(response, abortController.signal, {
+    const { content: finalMd, finishReason, completedNormally } = await _consumeSSEStream(response, abortController.signal, {
       onDelta: (delta, accumulated) => {
         AppState.currentMarkdown = accumulated;
       },
@@ -328,6 +361,11 @@ async function handleGenerate() {
     const finishMessage = getFinishReasonMessage(finishReason, '生成');
     if (finishMessage) {
       showToast(finishMessage, 'info', 5000);
+    }
+    if (!completedNormally) {
+      const incompleteMessage = getUnexpectedStreamEndMessage('生成');
+      console.warn('主版本生成流异常中断：未收到 finish_reason 或 [DONE]');
+      showError(incompleteMessage);
     }
 
     AppState.currentMarkdown = finalMd;
@@ -356,9 +394,9 @@ async function handleGenerate() {
 
       // 等待额外版本完成
       const extraResults = await Promise.all(extraPromises);
-      for (const md of extraResults) {
-        if (md) {
-          AppState.versionResults.push({ markdown: md });
+      for (const result of extraResults) {
+        if (result?.content && result.completedNormally) {
+          AppState.versionResults.push({ markdown: result.content });
         }
       }
 
@@ -373,9 +411,16 @@ async function handleGenerate() {
       AppState.activeVersionIndex = 0;
     }
 
+    if (!completedNormally) {
+      showToast('已保留当前部分结果，请检查 Vercel 日志或函数超时配置', 'info', 6000);
+      return;
+    }
+
     // 保存历史
     saveHistory(topic, finalMd);
-    showToast('思维导图生成成功！', 'success');
+    if (!finishMessage) {
+      showToast('思维导图生成成功！', 'success');
+    }
 
   } catch (error) {
     if (error.name === 'AbortError') {

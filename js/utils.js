@@ -91,3 +91,8 @@ function getFinishReasonMessage(finishReason, label = '输出') {
       return `AI ${label}提前结束（finish_reason: ${finishReason}）`;
   }
 }
+
+/** 流式连接未正常收尾时的提示 */
+function getUnexpectedStreamEndMessage(label = '输出') {
+  return `AI ${label}的流式连接提前结束，结果可能不完整；这更像是网络/代理/Vercel 超时，而不是 max_tokens`;
+}

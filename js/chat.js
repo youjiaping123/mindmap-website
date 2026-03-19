@@ -117,6 +117,7 @@ async function handleChat() {
     const decoder = new TextDecoder();
     let buffer = '';
     let sseFinished = false;
+    let sawDone = false;
     let finishReason = null;
 
     if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
@@ -126,7 +127,10 @@ async function handleChat() {
       if (!delta) return false;
       if (delta.errorMessage) throw new Error(delta.errorMessage);
       if (delta.finishReason) finishReason = delta.finishReason;
-      if (delta.done) return true;
+      if (delta.done) {
+        sawDone = true;
+        return true;
+      }
 
       if (delta.content) {
         fullResponse += delta.content;
@@ -163,12 +167,23 @@ async function handleChat() {
     }
 
     const trailingLine = buffer.trim();
-    if (trailingLine) consumeLine(trailingLine);
+    if (trailingLine && !sseFinished) {
+      sseFinished = consumeLine(trailingLine);
+    }
 
     fullResponse = fullResponse.trim();
 
     if (!fullResponse) {
       if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回了空结果，请重试';
+      return;
+    }
+
+    const completedNormally = sawDone || !!finishReason;
+    if (!completedNormally) {
+      const incompleteMessage = getUnexpectedStreamEndMessage('回复');
+      if (bubbleEl) bubbleEl.textContent = `⚠️ ${incompleteMessage}`;
+      console.warn('对话流异常中断：未收到 finish_reason 或 [DONE]');
+      showToast(incompleteMessage, 'error', 6000);
       return;
     }
 

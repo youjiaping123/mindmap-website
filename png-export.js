@@ -15,7 +15,6 @@ const PngExport = (() => {
 
   const VECTOR_PDF_FONT = {
     normalUrl: 'assets/fonts/LXGWWenKaiLite-Regular.ttf',
-    boldUrl: 'assets/fonts/LXGWWenKaiLite-Medium.ttf',
   };
 
   const fontBytesCache = new Map();
@@ -129,7 +128,6 @@ const PngExport = (() => {
         height: svgRect.height,
         fontSize: fontSizePx * heightScale,
         lineHeight: lineHeightPx * heightScale,
-        fontStyle: parseInt(style.fontWeight, 10) >= 600 ? 'bold' : 'normal',
         color: parseColor(style.color),
       };
     }).filter(Boolean);
@@ -519,12 +517,8 @@ const PngExport = (() => {
     pdfDoc.registerFontkit(window.fontkit);
     const [geometryPage] = await pdfDoc.embedPdf(geometryPdfBytes, [0]);
 
-    const needsBoldFont = textLayers.some((layer) => layer.fontStyle === 'bold');
     const normalFontBytes = await loadFontBytes(VECTOR_PDF_FONT.normalUrl);
-    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: false });
-    const boldFont = needsBoldFont
-      ? await loadFontBytes(VECTOR_PDF_FONT.boldUrl).then((bytes) => pdfDoc.embedFont(bytes, { subset: false }))
-      : normalFont;
+    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: true });
     const page = pdfDoc.addPage([geometryPage.width, geometryPage.height]);
     page.drawPage(geometryPage, {
       x: 0,
@@ -536,7 +530,6 @@ const PngExport = (() => {
     const PX_TO_PT = 72 / 96;
 
     textLayers.forEach((layer) => {
-      const font = layer.fontStyle === 'bold' ? boldFont : normalFont;
       const fontSizePt = Math.max(6, layer.fontSize * PX_TO_PT);
       const lineHeightPt = Math.max(fontSizePt, layer.lineHeight * PX_TO_PT);
       const textTopPt = (layer.y + Math.max((layer.height - layer.lineHeight) / 2, 0)) * PX_TO_PT;
@@ -547,7 +540,7 @@ const PngExport = (() => {
         y: pdfY,
         size: fontSizePt,
         lineHeight: lineHeightPt,
-        font,
+        font: normalFont,
         color: rgb(layer.color[0] / 255, layer.color[1] / 255, layer.color[2] / 255),
       });
     });
@@ -560,7 +553,7 @@ const PngExport = (() => {
       vector: true,
       exportBox,
       textLayerCount: textLayers.length,
-      embeddedFonts: needsBoldFont ? 2 : 1,
+      embeddedFonts: 1,
     };
   }
 

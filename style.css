@@ -942,6 +942,11 @@ body {
   font-family: 'LXGW WenKai Lite', 'Noto Sans SC', 'PingFang SC', sans-serif;
 }
 
+#markmapSvg foreignObject div,
+#markmapSvg foreignObject div * {
+  font-weight: 400 !important;
+}
+
 /* markmap 内部节点动画优化 */
 #markmapSvg g {
   will-change: transform, opacity;
