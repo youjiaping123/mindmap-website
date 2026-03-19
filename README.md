@@ -204,15 +204,33 @@ npm i -g vercel
 
 ### 3. 配置环境变量
 
+项目现在支持直接从根目录读取 `.env` 和 `.env.local`，用于本地调试。
+
+推荐做法：
+
+```bash
+cp .env.example .env.local
+```
+
 最少需要配置：
 
 ```bash
-vercel env add OPENAI_API_KEY
+OPENAI_API_KEY=你的_API_Key
 ```
 
-可选配置：
+常用本地配置示例：
 
 ```bash
+OPENAI_API_KEY=你的_API_Key
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODELS=gpt-4o-mini,gpt-4o
+```
+
+如果你是部署到 Vercel，再额外同步到平台环境变量：
+
+```bash
+vercel env add OPENAI_API_KEY
 vercel env add OPENAI_BASE_URL
 vercel env add OPENAI_MODEL
 vercel env add OPENAI_MODELS
@@ -224,7 +242,7 @@ vercel env add OPENAI_CHAT_MAX_TOKENS
 ### 4. 本地运行
 
 ```bash
-vercel dev
+npm run dev
 ```
 
 默认访问地址通常为：
@@ -404,6 +422,7 @@ AI 回复模式：
 - 根据 Markdown 结构生成节点树
 - 输出 `.xmind` 压缩包
 - 包含 `content.json`、`content.xml`、`metadata.json`、`manifest.json`
+- 额外写入 `Thumbnails/Thumbnails.png` 预览缩略图（低分辨率，控制文件体积）
 
 ### JPEG
 

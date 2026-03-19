@@ -158,14 +158,38 @@ const PngExport = (() => {
   function getSafeScale(width, height, requestedScale, options = {}) {
     const maxCanvasDimension = options.maxCanvasDimension || EXPORT_LIMITS.maxCanvasDimension;
     const maxCanvasArea = options.maxCanvasArea || EXPORT_LIMITS.maxCanvasArea;
+    const minScale = Number.isFinite(options.minScale) ? options.minScale : 1;
+    const maxOutputDimension = Number.isFinite(options.maxOutputDimension)
+      ? options.maxOutputDimension
+      : null;
+    const maxOutputArea = Number.isFinite(options.maxOutputArea)
+      ? options.maxOutputArea
+      : null;
 
-    const scaleByDimension = Math.min(
+    let scaleByDimension = Math.min(
       maxCanvasDimension / width,
       maxCanvasDimension / height,
     );
-    const scaleByArea = Math.sqrt(maxCanvasArea / (width * height));
+    let scaleByArea = Math.sqrt(maxCanvasArea / (width * height));
 
-    const safeScale = Math.max(1, Math.min(requestedScale, scaleByDimension, scaleByArea));
+    if (maxOutputDimension) {
+      scaleByDimension = Math.min(
+        scaleByDimension,
+        maxOutputDimension / width,
+        maxOutputDimension / height,
+      );
+    }
+
+    if (maxOutputArea) {
+      scaleByArea = Math.min(
+        scaleByArea,
+        Math.sqrt(maxOutputArea / (width * height)),
+      );
+    }
+
+    const constrainedScale = Math.min(requestedScale, scaleByDimension, scaleByArea);
+    const floorScale = Math.min(minScale, scaleByDimension, scaleByArea);
+    const safeScale = Math.max(floorScale, constrainedScale);
     const actualScale = Math.round(safeScale * 100) / 100;
 
     return {

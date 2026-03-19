@@ -1,4 +1,66 @@
 // API 公共配置与工具函数
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
+let localEnvLoaded = false;
+
+function parseEnvValue(rawValue) {
+  const value = rawValue.trim();
+  const isWrappedInSingleQuotes = value.startsWith("'") && value.endsWith("'");
+  const isWrappedInDoubleQuotes = value.startsWith('"') && value.endsWith('"');
+
+  if (isWrappedInSingleQuotes || isWrappedInDoubleQuotes) {
+    const unwrapped = value.slice(1, -1);
+    return isWrappedInDoubleQuotes
+      ? unwrapped.replace(/\\n/g, '\n').replace(/\\r/g, '\r')
+      : unwrapped;
+  }
+
+  return value;
+}
+
+function loadLocalEnvFiles() {
+  if (localEnvLoaded) return;
+  localEnvLoaded = true;
+
+  const protectedKeys = new Set(Object.keys(process.env));
+  const envFileNames = ['.env', '.env.local'];
+
+  for (const fileName of envFileNames) {
+    const filePath = path.join(PROJECT_ROOT, fileName);
+    if (!fs.existsSync(filePath)) continue;
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/);
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+
+      const normalized = trimmed.startsWith('export ')
+        ? trimmed.slice(7).trim()
+        : trimmed;
+      const separatorIndex = normalized.indexOf('=');
+
+      if (separatorIndex <= 0) continue;
+
+      const key = normalized.slice(0, separatorIndex).trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+
+      const rawValue = normalized.slice(separatorIndex + 1);
+      if (!protectedKeys.has(key) || process.env[key] == null) {
+        process.env[key] = parseEnvValue(rawValue);
+      }
+    }
+  }
+}
+
+loadLocalEnvFiles();
 
 /**
  * 获取 OpenAI API 配置（从环境变量）

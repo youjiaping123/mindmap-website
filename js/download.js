@@ -3,12 +3,25 @@
  * 依赖: state.js, ui.js
  */
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensurePreviewReady() {
+  switchTab('preview');
+  await wait(160);
+}
+
 /** 下载 .xmind 文件 */
 async function downloadXmind() {
-  if (!AppState.currentMarkdown) return;
+  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
   try {
+    await ensurePreviewReady();
     const filename = AppState.currentTopic || 'mindmap';
-    await XmindExport.download(AppState.currentMarkdown, filename);
+    const svgEl = $('markmapSvg');
+    await XmindExport.download(AppState.currentMarkdown, filename, {
+      svgElement: svgEl,
+    });
     showToast('Xmind 文件下载成功', 'success');
   } catch (error) {
     showError('下载 .xmind 失败: ' + error.message);
@@ -23,8 +36,8 @@ function getExportAdvice(result) {
 /** 下载 PNG 图片 */
 async function downloadPng() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
-  switchTab('preview');
   try {
+    await ensurePreviewReady();
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
     const result = await PngExport.download(svgEl, filename, {
@@ -41,8 +54,8 @@ async function downloadPng() {
 /** 下载 SVG 矢量图 */
 async function downloadSvg() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
-  switchTab('preview');
   try {
+    await ensurePreviewReady();
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
     await PngExport.downloadSvg(svgEl, filename, {
@@ -58,8 +71,8 @@ async function downloadSvg() {
 /** 下载矢量 PDF */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
-  switchTab('preview');
   try {
+    await ensurePreviewReady();
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
     showToast('正在生成矢量 PDF...', 'info');

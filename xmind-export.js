@@ -8,9 +8,20 @@
  *   - content.xml    (兼容性 XML — 旧版 Xmind 8 使用，多语言警告)
  *   - metadata.json  (元信息 — 包含版本和创建者信息)
  *   - manifest.json  (清单文件 — 列出所有文件条目)
+ *   - Thumbnails/Thumbnails.png (预览缩略图)
  */
 
 const XmindExport = (() => {
+  const THUMBNAIL_PATH = 'Thumbnails/Thumbnails.png';
+  const THUMBNAIL_EXPORT_OPTIONS = {
+    scale: 1,
+    minScale: 0.1,
+    maxOutputDimension: 512,
+    maxOutputArea: 512 * 512,
+    padding: 24,
+    backgroundColor: '#ffffff',
+  };
+
 
   /**
    * 生成唯一 ID (模拟 Xmind 的 ID 格式: 26位十六进制字符)
@@ -253,13 +264,23 @@ const XmindExport = (() => {
    * 生成 manifest.json — 文件清单
    * 列出 ZIP 包中所有的文件条目
    */
-  function generateManifestJson() {
+  function generateManifestJson(hasThumbnail = false) {
+    const fileEntries = {
+      'metadata.json': {},
+      'content.json': {},
+      'content.xml': {},
+      'manifest.json': {},
+    };
+
+    if (hasThumbnail) {
+      fileEntries['Thumbnails/'] = {};
+      fileEntries[THUMBNAIL_PATH] = {
+        'media-type': 'image/png',
+      };
+    }
+
     return {
-      'file-entries': {
-        'metadata.json': {},
-        'content.json': {},
-        'content.xml': {},
-      },
+      'file-entries': fileEntries,
     };
   }
 
@@ -279,15 +300,38 @@ const XmindExport = (() => {
   }
 
   /**
+   * 基于当前预览 SVG 生成低清晰度缩略图，用于 Xmind 预览
+   * @param {SVGSVGElement|null} svgElement - 当前思维导图 SVG
+   * @returns {Promise<Blob|null>} 缩略图 PNG Blob
+   */
+  async function generateThumbnailBlob(svgElement) {
+    if (!svgElement) return null;
+
+    if (typeof window.PngExport?.svgToImageBlob !== 'function') {
+      throw new Error('缩略图导出模块未加载，请刷新页面重试');
+    }
+
+    const { blob } = await window.PngExport.svgToImageBlob(
+      svgElement,
+      THUMBNAIL_EXPORT_OPTIONS,
+    );
+
+    return blob;
+  }
+
+  /**
    * 主方法：Markdown → .xmind Blob
    * @param {string} markdown - Markdown 内容
+   * @param {object} [options] - 导出选项
+   * @param {SVGSVGElement|null} [options.svgElement] - 用于生成缩略图的 SVG
    * @returns {Promise<Blob>} .xmind 文件的 Blob
    */
-  async function markdownToXmindBlob(markdown) {
+  async function markdownToXmindBlob(markdown, options = {}) {
     const tree = parseMarkdownToTree(markdown);
     const contentJson = generateContentJson(tree);
-    const manifestJson = generateManifestJson();
     const metadataJson = generateMetadataJson();
+    const thumbnailBlob = await generateThumbnailBlob(options.svgElement || null);
+    const manifestJson = generateManifestJson(Boolean(thumbnailBlob));
 
     const zip = new JSZip();
 
@@ -296,6 +340,9 @@ const XmindExport = (() => {
     zip.file('metadata.json', JSON.stringify(metadataJson));
     zip.file('content.xml', generateContentXml());
     zip.file('manifest.json', JSON.stringify(manifestJson));
+    if (thumbnailBlob) {
+      zip.file(THUMBNAIL_PATH, thumbnailBlob);
+    }
 
     // STORE 压缩模式（不压缩）
     const blob = await zip.generateAsync({
@@ -310,9 +357,10 @@ const XmindExport = (() => {
    * 触发下载 .xmind 文件
    * @param {string} markdown - Markdown 内容
    * @param {string} filename - 文件名（不含扩展名）
+   * @param {object} [options] - 导出选项
    */
-  async function download(markdown, filename) {
-    const blob = await markdownToXmindBlob(markdown);
+  async function download(markdown, filename, options = {}) {
+    const blob = await markdownToXmindBlob(markdown, options);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
