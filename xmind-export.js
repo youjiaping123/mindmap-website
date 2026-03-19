@@ -307,11 +307,15 @@ const XmindExport = (() => {
   async function generateThumbnailBlob(svgElement) {
     if (!svgElement) return null;
 
-    if (typeof window.PngExport?.svgToImageBlob !== 'function') {
+    const pngExporter = typeof PngExport !== 'undefined'
+      ? PngExport
+      : window.PngExport;
+
+    if (typeof pngExporter?.svgToImageBlob !== 'function') {
       throw new Error('缩略图导出模块未加载，请刷新页面重试');
     }
 
-    const { blob } = await window.PngExport.svgToImageBlob(
+    const { blob } = await pngExporter.svgToImageBlob(
       svgElement,
       THUMBNAIL_EXPORT_OPTIONS,
     );

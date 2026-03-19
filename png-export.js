@@ -542,7 +542,9 @@ const PngExport = (() => {
     const [geometryPage] = await pdfDoc.embedPdf(geometryPdfBytes, [0]);
 
     const normalFontBytes = await loadFontBytes(VECTOR_PDF_FONT.normalUrl);
-    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: true });
+    // pdf-lib/fontkit subsetted CJK glyphs render incorrectly in some PDF engines.
+    // Keep a single regular-weight font to avoid the second embed, but disable subsetting.
+    const normalFont = await pdfDoc.embedFont(normalFontBytes, { subset: false });
     const page = pdfDoc.addPage([geometryPage.width, geometryPage.height]);
     page.drawPage(geometryPage, {
       x: 0,
