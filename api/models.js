@@ -1,5 +1,5 @@
 // Vercel Serverless Function - 获取可用模型列表
-import { getOpenAIConfig, errorResponse } from './_shared.js';
+import { getOpenAIConfig, errorResponse, buildOpenAIUrl } from './_shared.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   // 尝试从远程 API 获取
   try {
-    const response = await fetch(`${baseUrl}/v1/models`, {
+    const response = await fetch(buildOpenAIUrl(baseUrl, 'models'), {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${apiKey}` },
     });

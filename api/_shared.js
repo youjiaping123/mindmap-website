@@ -62,6 +62,32 @@ function loadLocalEnvFiles() {
 
 loadLocalEnvFiles();
 
+function normalizeOpenAIBaseUrl(rawBaseUrl) {
+  const fallback = 'https://api.openai.com/v1';
+  const candidate = (typeof rawBaseUrl === 'string' && rawBaseUrl.trim())
+    ? rawBaseUrl.trim()
+    : fallback;
+
+  try {
+    const url = new URL(candidate);
+    let pathname = url.pathname.replace(/\/+$/, '');
+
+    // Most OpenAI-compatible services expose endpoints under /v1.
+    if (!pathname) {
+      pathname = '/v1';
+    }
+
+    url.pathname = pathname;
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return fallback;
+  }
+}
+
+export function buildOpenAIUrl(baseUrl, endpointPath) {
+  return `${baseUrl.replace(/\/+$/, '')}/${endpointPath.replace(/^\/+/, '')}`;
+}
+
 /**
  * 获取 OpenAI API 配置（从环境变量）
  */
@@ -75,7 +101,7 @@ function readPositiveIntEnv(name) {
 
 export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
-  const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const baseUrl = normalizeOpenAIBaseUrl(process.env.OPENAI_BASE_URL);
   const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
   const sharedMaxTokens = readPositiveIntEnv('OPENAI_MAX_TOKENS');
   const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens;
@@ -113,7 +139,7 @@ export async function callChatCompletions({ baseUrl, apiKey, model, messages, te
     payload.max_tokens = maxTokens;
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetch(buildOpenAIUrl(baseUrl, 'chat/completions'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -149,7 +175,7 @@ export async function callChatCompletionsStream({ baseUrl, apiKey, model, messag
     payload.max_tokens = maxTokens;
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetch(buildOpenAIUrl(baseUrl, 'chat/completions'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
