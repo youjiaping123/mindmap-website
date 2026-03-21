@@ -17,11 +17,6 @@
   <!-- JSZip for .xmind export -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
-  <!-- jsPDF for PDF export -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.6.0/dist/svg2pdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 </head>
 <body>
   <!-- 粒子背景画布 -->
@@ -89,7 +84,7 @@
       <h2 class="hero-title">
         用 AI 创造<br><span class="gradient-text">思维的无限可能</span>
       </h2>
-      <p class="hero-desc">输入任意主题，AI 自动生成结构清晰的思维导图<br>支持在线预览、对话式修改、导出 Xmind、JPG、SVG 和 PDF</p>
+      <p class="hero-desc">输入任意主题，AI 自动生成结构清晰的思维导图<br>支持在线预览、对话式修改、导出 Xmind、JPG 和 SVG</p>
     </section>
 
     <!-- 输入区域 -->
@@ -198,10 +193,6 @@
         <button class="export-btn xmind-btn" onclick="downloadXmind()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           .xmind
-        </button>
-        <button class="export-btn pdf-btn" onclick="downloadPdf()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          PDF
         </button>
         <button class="export-btn svg-btn" onclick="downloadSvg()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 8l2.5 8L13 8"/><path d="M15.5 8h2a2 2 0 0 1 0 4h-2v4"/><path d="M15.5 12h1.5"/></svg>

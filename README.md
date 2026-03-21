@@ -1,6 +1,6 @@
 # ZevenAI Mindmap
 
-一个面向中文场景的 AI 思维导图网站。输入主题后，服务端调用 OpenAI 兼容模型生成 Markdown 大纲，前端将其流式渲染为可交互的思维导图，并支持对话式修改、历史记录、Xmind 导出、JPEG 导出和 PDF 导出。
+一个面向中文场景的 AI 思维导图网站。输入主题后，服务端调用 OpenAI 兼容模型生成 Markdown 大纲，前端将其流式渲染为可交互的思维导图，并支持对话式修改、历史记录、Xmind 导出、JPEG 导出和 SVG 导出。
 
 项目采用“静态前端 + Vercel Serverless Functions”结构，不需要传统前端构建流程。页面资源直接由 `index.html` 和浏览器端脚本驱动，AI 请求通过 `/api/*` 代理完成，避免在前端暴露密钥。
 
@@ -11,7 +11,7 @@
 - 对话式局部修改导图
 - 多版本并行生成
 - 历史记录持久化
-- 导出 `.xmind` / `.jpg` / `.pdf`
+- 导出 `.xmind` / `.jpg` / `.svg`
 
 ## 核心特性
 
@@ -61,8 +61,8 @@
 
 - 导出 `.xmind`
 - 导出高清 `.jpg`
-- 导出 `.pdf`
-- 图片和 PDF 导出基于当前 SVG 图谱生成，适合分享和打印
+- 导出 `.svg`
+- 图片导出基于当前 SVG 图谱生成，适合分享和后续编辑
 
 ### 7. 本地历史记录
 
@@ -86,7 +86,7 @@
 - 流式消费 SSE
 - 将 Markdown 转换为思维导图
 - 执行 AI 返回的局部修改指令
-- 导出 Xmind / JPEG / PDF
+- 导出 Xmind / JPEG / SVG
 
 ### 后端
 
@@ -136,8 +136,6 @@
 - [Markmap](https://markmap.js.org/)：Markdown 思维导图渲染
 - [D3](https://d3js.org/)：Markmap 依赖
 - [JSZip](https://stuk.github.io/jszip/)：生成 `.xmind`
-- [jsPDF](https://github.com/parallax/jsPDF)：导出 PDF
-
 ### 运行平台
 
 - Node.js `>=18`
@@ -168,7 +166,7 @@ mindmap-website/
 ├── js/
 │   ├── chat.js           # 对话 UI 与 SSE 消费
 │   ├── constants.js      # 全局常量与默认提示词
-│   ├── download.js       # Xmind / JPEG / PDF 下载
+│   ├── download.js       # Xmind / JPEG / SVG 下载
 │   ├── generate.js       # 生成主流程与多版本逻辑
 │   ├── history.js        # localStorage 历史记录
 │   ├── main.js           # 页面初始化与全局事件
@@ -181,7 +179,7 @@ mindmap-website/
 │   └── ui.js             # UI 工具函数
 ├── index.html            # 主页面
 ├── style.css             # 全局样式
-├── png-export.js         # SVG 转 JPEG / PDF
+├── png-export.js         # SVG 转 JPEG / SVG
 ├── xmind-export.js       # Markdown 转 Xmind
 ├── vercel.json           # Vercel 配置
 └── package.json          # 项目元信息
@@ -448,7 +446,7 @@ AI 回复模式：
 
 - 将 SVG 转换为高清 JPEG
 - 内联样式以保证导出结果与页面一致
-- 进一步封装为 PDF 文件
+- 生成可下载的 SVG 文件
 
 ## 导出说明
 
@@ -464,10 +462,9 @@ AI 回复模式：
 - 将 SVG 克隆后导出为白底 JPEG
 - 默认高倍率导出，适合社交平台和文档嵌入
 
-### PDF
+### SVG
 
-- 先生成高清 JPEG
-- 再使用 `jsPDF` 封装为单页 PDF
+- 保留矢量结构，适合无限放大和二次编辑
 
 ## UI 与交互设计
 

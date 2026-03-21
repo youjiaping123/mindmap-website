@@ -70,21 +70,3 @@ async function downloadSvg() {
     showError('导出图片失败: ' + error.message);
   }
 }
-
-/** 下载矢量 PDF */
-async function downloadPdf() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
-  try {
-    await ensurePreviewReady();
-    const svgEl = $('markmapSvg');
-    const filename = AppState.currentTopic || 'mindmap';
-    showToast('正在生成矢量 PDF...', 'info');
-    await PngExport.downloadPdf(svgEl, filename, {
-      padding: 50,
-      backgroundColor: '#ffffff',
-    });
-    showToast('PDF 下载成功，已嵌入中文字体并保留矢量细节', 'success');
-  } catch (error) {
-    showError('导出 PDF 失败: ' + error.message);
-  }
-}
