@@ -1,8 +1,8 @@
 /**
  * 导出模块
  *
- * 提供 PNG、SVG、PDF 导出：
- * - PNG: 无损位图，适合普通分享
+ * 提供 JPG、SVG、PDF 导出：
+ * - JPG: 高兼容位图，适合普通分享
  * - SVG: 矢量图，适合大图和后续编辑
  * - PDF: 真矢量 PDF，中文文字通过 pdf-lib 嵌入开源字体
  */
@@ -499,10 +499,10 @@ const PngExport = (() => {
   async function download(svgElement, filename, options = {}) {
     const result = await svgToImageBlob(svgElement, {
       ...options,
-      mimeType: 'image/png',
+      mimeType: 'image/jpeg',
     });
 
-    triggerDownload(result.blob, `${filename}.png`);
+    triggerDownload(result.blob, `${filename}.jpg`);
     return result;
   }
 

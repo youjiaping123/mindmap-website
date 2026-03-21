@@ -20,6 +20,7 @@ const XmindExport = (() => {
     maxOutputArea: 512 * 512,
     padding: 24,
     backgroundColor: '#ffffff',
+    mimeType: 'image/png',
   };
 
 
