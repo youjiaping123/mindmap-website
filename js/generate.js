@@ -310,9 +310,12 @@ async function handleGenerate() {
   try {
     const selectedModel = $('modelSelect').value || '';
     const customPrompt = ($('customPrompt').value || '').trim();
+    const presetTemperature = typeof getActivePresetTemperature === 'function'
+      ? getActivePresetTemperature()
+      : null;
 
     // ===== 版本 1: 始终流式预览 =====
-    const baseTemp = 0.7;
+    const baseTemp = typeof presetTemperature === 'number' ? presetTemperature : 0.7;
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
