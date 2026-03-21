@@ -1,7 +1,7 @@
 {
   "name": "mindmap-generator",
   "version": "2.0.0",
-  "description": "AI 思维导图生成器 - 输入主题，在线预览并下载 Xmind 和 JPG，支持对话式修改",
+  "description": "AI 思维导图生成器 - 输入主题，在线预览并下载 Xmind、JPG、PDF，支持对话式修改",
   "private": true,
   "type": "module",
   "scripts": {

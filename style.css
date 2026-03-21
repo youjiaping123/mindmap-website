@@ -863,6 +863,14 @@ body {
   box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
 }
 
+.pdf-btn {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.pdf-btn:hover {
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.35);
+}
+
 .svg-btn {
   background: linear-gradient(135deg, #0ea5e9, #0369a1);
 }

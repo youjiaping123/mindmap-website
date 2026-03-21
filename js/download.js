@@ -33,6 +33,13 @@ function getExportAdvice(result) {
   return '；导图过大时浏览器会限制位图尺寸，若需要无限放大细节，建议改用 SVG';
 }
 
+const BITMAP_EXPORT_OPTIONS = {
+  scale: 8,
+  padding: 50,
+  backgroundColor: '#ffffff',
+  quality: 1,
+};
+
 /** 下载 JPG 图片 */
 async function downloadJpg() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
@@ -40,11 +47,7 @@ async function downloadJpg() {
     await ensurePreviewReady();
     const svgEl = $('markmapSvg');
     const filename = AppState.currentTopic || 'mindmap';
-    const result = await PngExport.download(svgEl, filename, {
-      scale: 4,
-      padding: 50,
-      backgroundColor: '#ffffff',
-    });
+    const result = await PngExport.download(svgEl, filename, BITMAP_EXPORT_OPTIONS);
     showToast(`JPG 图片下载成功${getExportAdvice(result)}`, 'success');
   } catch (error) {
     showError('导出图片失败: ' + error.message);
@@ -53,6 +56,21 @@ async function downloadJpg() {
 
 // 兼容旧按钮/历史调用名。
 const downloadPng = downloadJpg;
+
+/** 下载 PDF 文件 */
+async function downloadPdf() {
+  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  try {
+    await ensurePreviewReady();
+    const svgEl = $('markmapSvg');
+    const filename = AppState.currentTopic || 'mindmap';
+    showToast('正在生成高清 PDF...', 'info');
+    const result = await PngExport.downloadPdf(svgEl, filename, BITMAP_EXPORT_OPTIONS);
+    showToast(`PDF 下载成功，已写入高分辨率 JPG${getExportAdvice(result)}`, 'success');
+  } catch (error) {
+    showError('导出 PDF 失败: ' + error.message);
+  }
+}
 
 /** 下载 SVG 矢量图 */
 async function downloadSvg() {

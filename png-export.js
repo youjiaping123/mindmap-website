@@ -1,8 +1,9 @@
 /**
  * 导出模块
  *
- * 提供 JPG、SVG 导出：
+ * 提供 JPG、PDF、SVG 导出：
  * - JPG: 高兼容位图，适合普通分享
+ * - PDF: 将高分辨率 JPG 写入 PDF，适合打印和归档
  * - SVG: 矢量图，适合大图和后续编辑
  */
 
@@ -373,6 +374,23 @@ const PngExport = (() => {
     URL.revokeObjectURL(url);
   }
 
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('图片编码失败'));
+        }
+      };
+
+      reader.onerror = () => reject(new Error('图片编码失败'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
   async function download(svgElement, filename, options = {}) {
     const result = await svgToImageBlob(svgElement, {
       ...options,
@@ -390,8 +408,44 @@ const PngExport = (() => {
     return { blob };
   }
 
+  async function downloadPdf(svgElement, filename, options = {}) {
+    if (typeof window.jspdf === 'undefined') {
+      throw new Error('PDF 导出库未加载，请刷新页面重试');
+    }
+
+    const { jsPDF } = window.jspdf;
+    const result = await svgToImageBlob(svgElement, {
+      ...options,
+      mimeType: 'image/jpeg',
+    });
+    const imageDataUrl = await blobToDataUrl(result.blob);
+    const PX_TO_PT = 72 / 96;
+    const pdfWidth = Math.max(10, result.exportBox.width * PX_TO_PT);
+    const pdfHeight = Math.max(10, result.exportBox.height * PX_TO_PT);
+    const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+    const doc = new jsPDF({
+      orientation,
+      unit: 'pt',
+      format: [pdfWidth, pdfHeight],
+      compress: true,
+    });
+
+    doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
+
+    const pdfBlob = doc.output('blob');
+    triggerDownload(pdfBlob, `${filename}.pdf`);
+
+    return {
+      ...result,
+      pdfWidth,
+      pdfHeight,
+      imageFormat: 'jpeg',
+    };
+  }
+
   return {
     download,
+    downloadPdf,
     downloadSvg,
     svgToImageBlob,
   };
