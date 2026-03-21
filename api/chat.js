@@ -1,6 +1,8 @@
 // Vercel Serverless Function - 对话式局部修改思维导图（流式）
 import {
   getOpenAIConfig,
+  getBodySizeLimits,
+  guardApiRequest,
   resolveModel,
   callChatCompletionsStream,
   pipeSSE,
@@ -66,16 +68,32 @@ export default async function handler(req, res) {
     return errorResponse(res, 405, 'Method not allowed');
   }
 
-  const { apiKey, baseUrl, defaultModel, chatMaxTokens } = getOpenAIConfig();
+  const guard = guardApiRequest(req, res, { routeKey: 'chat' });
+  if (!guard.ok) return guard.response;
+
+  const config = getOpenAIConfig();
+  const {
+    apiKey,
+    baseUrl,
+    defaultModel,
+    chatMaxTokens,
+  } = config;
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
 
   try {
     const { currentMarkdown, message, model, history } = req.body;
+    const {
+      maxCurrentMarkdownLength,
+      maxChatHistoryLength,
+    } = getBodySizeLimits(config, guard.context.isTrustedRequest);
 
     if (!currentMarkdown || typeof currentMarkdown !== 'string' || !currentMarkdown.trim()) {
       return errorResponse(res, 400, '请先生成思维导图');
+    }
+    if (currentMarkdown.trim().length > maxCurrentMarkdownLength) {
+      return errorResponse(res, 400, `当前导图内容过长（最多 ${maxCurrentMarkdownLength} 字）`);
     }
     if (!message || typeof message !== 'string' || !message.trim()) {
       return errorResponse(res, 400, '请输入你的问题或指令');
@@ -88,11 +106,24 @@ export default async function handler(req, res) {
 
     const messages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
 
-    if (Array.isArray(history) && history.length > 0) {
-      for (const h of history.slice(-6)) {
-        if ((h.role === 'user' || h.role === 'assistant') && h.content) {
-          messages.push({ role: h.role, content: h.content });
-        }
+    const recentHistory = Array.isArray(history) ? history.slice(-6) : [];
+    let historyCharCount = 0;
+    for (const item of recentHistory) {
+      if (!item || typeof item !== 'object') continue;
+      const role = item.role;
+      const content = typeof item.content === 'string' ? item.content : '';
+      if ((role === 'user' || role === 'assistant') && content) {
+        historyCharCount += content.length;
+      }
+    }
+    if (historyCharCount > maxChatHistoryLength) {
+      return errorResponse(res, 400, `历史消息过长（最多 ${maxChatHistoryLength} 字）`);
+    }
+
+    for (const h of recentHistory) {
+      if (!h || typeof h !== 'object') continue;
+      if ((h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content) {
+        messages.push({ role: h.role, content: h.content });
       }
     }
 
@@ -102,6 +133,7 @@ export default async function handler(req, res) {
     });
 
     // 流式调用
+    const upstreamAbortController = new AbortController();
     const upstreamResponse = await callChatCompletionsStream({
       baseUrl,
       apiKey,
@@ -109,10 +141,11 @@ export default async function handler(req, res) {
       messages,
       temperature: 0.3,
       maxTokens: chatMaxTokens,
+      signal: upstreamAbortController.signal,
     });
 
     // 直接将 SSE 流转发给前端
-    await pipeSSE(upstreamResponse, res);
+    await pipeSSE(upstreamResponse, req, res, upstreamAbortController);
 
   } catch (error) {
     if (error.message === 'AI_SERVICE_ERROR') {

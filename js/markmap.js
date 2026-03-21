@@ -234,6 +234,8 @@ function _getLinesRange(nodeData) {
 
 /** 在 SVG 容器上绑定原生 contextmenu 事件（比 D3 .on() 更可靠） */
 let _contextMenuClickHandler = null;
+let _contextMenuSvgEl = null;
+let _contextMenuSvgHandler = null;
 
 function _setupContextMenu(mm) {
   const svgEl = mm.svg.node ? mm.svg.node() : mm.svg;
@@ -248,8 +250,12 @@ function _setupContextMenu(mm) {
     document.addEventListener('click', _contextMenuClickHandler);
   }
 
+  if (_contextMenuSvgEl && _contextMenuSvgHandler) {
+    _contextMenuSvgEl.removeEventListener('contextmenu', _contextMenuSvgHandler);
+  }
+
   // 右键事件绑定到 SVG DOM 元素（原生事件，比 D3 .on() 更可靠）
-  svgEl.addEventListener('contextmenu', (event) => {
+  _contextMenuSvgHandler = (event) => {
     event.preventDefault();
     event.stopPropagation();
     _removeContextMenu();
@@ -265,7 +271,10 @@ function _setupContextMenu(mm) {
     }
 
     _createContextMenu(event, parsed);
-  });
+  };
+
+  svgEl.addEventListener('contextmenu', _contextMenuSvgHandler);
+  _contextMenuSvgEl = svgEl;
 }
 
 /** 创建并显示右键菜单 */
@@ -355,9 +364,8 @@ function saveNodeEdit() {
     AppState.currentMarkdown = lines.join('\n');
   }
 
-  // 同步更新当前版本缓存
-  if (AppState.activeVersionIndex >= 0 && AppState.versionResults[AppState.activeVersionIndex]) {
-    AppState.versionResults[AppState.activeVersionIndex].markdown = AppState.currentMarkdown;
+  if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+    syncCurrentMarkdownToActiveVersion();
   }
 
   updateMarkmap(AppState.currentMarkdown);
@@ -382,9 +390,8 @@ function _deleteNode(parsed) {
   const newLines = lines.filter((_, i) => i < lineStart || i >= lineEnd);
   AppState.currentMarkdown = newLines.join('\n');
 
-  // 同步更新当前版本缓存
-  if (AppState.activeVersionIndex >= 0 && AppState.versionResults[AppState.activeVersionIndex]) {
-    AppState.versionResults[AppState.activeVersionIndex].markdown = AppState.currentMarkdown;
+  if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+    syncCurrentMarkdownToActiveVersion();
   }
 
   updateMarkmap(AppState.currentMarkdown);

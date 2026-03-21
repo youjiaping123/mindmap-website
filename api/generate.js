@@ -1,6 +1,8 @@
 // Vercel Serverless Function - 生成思维导图（SSE 流式）
 import {
   getOpenAIConfig,
+  getBodySizeLimits,
+  guardApiRequest,
   resolveModel,
   callChatCompletionsStream,
   pipeSSE,
@@ -13,19 +15,30 @@ export default async function handler(req, res) {
     return errorResponse(res, 405, 'Method not allowed');
   }
 
-  const { apiKey, baseUrl, defaultModel, generateMaxTokens } = getOpenAIConfig();
+  const guard = guardApiRequest(req, res, { routeKey: 'generate' });
+  if (!guard.ok) return guard.response;
+
+  const config = getOpenAIConfig();
+  const { apiKey, baseUrl, defaultModel, generateMaxTokens } = config;
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
 
   try {
     const { topic, model, customPrompt, temperature: reqTemp } = req.body;
+    const { maxCustomPromptLength } = getBodySizeLimits(config, guard.context.isTrustedRequest);
 
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       return errorResponse(res, 400, 'Please provide a valid topic');
     }
     if (topic.length > 200) {
       return errorResponse(res, 400, 'Topic is too long (max 200 chars)');
+    }
+    if (customPrompt != null && typeof customPrompt !== 'string') {
+      return errorResponse(res, 400, 'customPrompt must be a string');
+    }
+    if (typeof customPrompt === 'string' && customPrompt.trim().length > maxCustomPromptLength) {
+      return errorResponse(res, 400, `customPrompt is too long (max ${maxCustomPromptLength} chars)`);
     }
 
     const selectedModel = resolveModel(model, defaultModel);
@@ -40,6 +53,7 @@ export default async function handler(req, res) {
       ? topic.trim()
       : `请为以下主题生成思维导图大纲：${topic.trim()}`;
 
+    const upstreamAbortController = new AbortController();
     const upstreamResponse = await callChatCompletionsStream({
       baseUrl,
       apiKey,
@@ -50,10 +64,11 @@ export default async function handler(req, res) {
       ],
       temperature,
       maxTokens: generateMaxTokens,
+      signal: upstreamAbortController.signal,
     });
 
     // 以 SSE 流式转发给前端
-    await pipeSSE(upstreamResponse, res);
+    await pipeSSE(upstreamResponse, req, res, upstreamAbortController);
   } catch (error) {
     if (error.message === 'AI_SERVICE_ERROR') {
       return errorResponse(res, 502, 'AI service error, please try again later');

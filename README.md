@@ -268,6 +268,19 @@ vercel --prod
 | `OPENAI_MAX_TOKENS` | 否 | 统一设置生成与对话的输出上限 |
 | `OPENAI_GENERATE_MAX_TOKENS` | 否 | 单独设置 `/api/generate` 的输出上限 |
 | `OPENAI_CHAT_MAX_TOKENS` | 否 | 单独设置 `/api/chat` 的输出上限 |
+| `API_AUTH_TOKEN` | 否 | 设置后可通过请求头 `X-App-Token` 识别可信调用方 |
+| `ALLOWED_ORIGINS` | 否 | 允许访问 API 的来源域名（逗号分隔） |
+| `API_RATE_LIMIT_WINDOW_MS` | 否 | 限流窗口时长（毫秒），默认 `60000` |
+| `API_RATE_LIMIT_GENERATE_PER_WINDOW` | 否 | `/api/generate` 每窗口请求上限，默认 `20` |
+| `API_RATE_LIMIT_CHAT_PER_WINDOW` | 否 | `/api/chat` 每窗口请求上限，默认 `20` |
+| `API_RATE_LIMIT_MODELS_PER_WINDOW` | 否 | `/api/models` 每窗口请求上限，默认 `60` |
+| `API_DAILY_QUOTA` | 否 | 每个调用标识的每日请求上限，默认 `800` |
+| `API_MAX_CUSTOM_PROMPT_LENGTH` | 否 | 普通请求下 `customPrompt` 长度上限，默认 `30000` |
+| `API_MAX_CURRENT_MARKDOWN_LENGTH` | 否 | 普通请求下 `currentMarkdown` 长度上限，默认 `20000` |
+| `API_MAX_CHAT_HISTORY_LENGTH` | 否 | 普通请求下 chat history 总长度上限（最近 6 条），默认 `10000` |
+| `API_TRUSTED_MAX_CUSTOM_PROMPT_LENGTH` | 否 | 可信请求下 `customPrompt` 长度上限，默认 `60000` |
+| `API_TRUSTED_MAX_CURRENT_MARKDOWN_LENGTH` | 否 | 可信请求下 `currentMarkdown` 长度上限，默认 `40000` |
+| `API_TRUSTED_MAX_CHAT_HISTORY_LENGTH` | 否 | 可信请求下 chat history 总长度上限（最近 6 条），默认 `20000` |
 
 ### 关于 `max_tokens`
 
@@ -302,11 +315,27 @@ vercel --prod
 OPENAI_MODELS=gpt-4o,gpt-4o-mini,deepseek-chat
 ```
 
+### 关于 API 访问保护
+
+项目现在对 `/api/generate`、`/api/chat`、`/api/models` 启用了三层保护：
+
+- 来源校验（同源 / 允许域名）
+- 限流（按路由、按窗口）
+- 每日配额（内存计数，serverless 多实例下是 best-effort）
+
+可选地，你可以给可信客户端分配 `X-App-Token`，并通过 `API_TRUSTED_MAX_*` 放宽长内容上限。
+
 ## API 说明
 
 ### `POST /api/generate`
 
 生成思维导图大纲并以 SSE 形式返回。
+
+可选请求头（用于可信调用方）：
+
+```http
+X-App-Token: your-token
+```
 
 请求体示例：
 
@@ -329,6 +358,12 @@ OPENAI_MODELS=gpt-4o,gpt-4o-mini,deepseek-chat
 ### `POST /api/chat`
 
 在现有思维导图基础上执行对话式修改，或进行普通聊天。
+
+可选请求头（用于可信调用方）：
+
+```http
+X-App-Token: your-token
+```
 
 请求体示例：
 
@@ -477,6 +512,12 @@ vercel --prod
 如果是兼容服务，建议额外添加：
 
 - `OPENAI_MODELS`
+
+如果你希望更强防刷能力，建议额外添加：
+
+- `API_AUTH_TOKEN`
+- `ALLOWED_ORIGINS`
+- `API_DAILY_QUOTA`
 
 ## 常见问题
 

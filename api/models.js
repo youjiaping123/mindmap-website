@@ -1,10 +1,13 @@
 // Vercel Serverless Function - 获取可用模型列表
-import { getOpenAIConfig, errorResponse, buildOpenAIUrl } from './_shared.js';
+import { getOpenAIConfig, errorResponse, buildOpenAIUrl, guardApiRequest } from './_shared.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return errorResponse(res, 405, 'Method not allowed');
   }
+
+  const guard = guardApiRequest(req, res, { routeKey: 'models' });
+  if (!guard.ok) return guard.response;
 
   const { apiKey, baseUrl, defaultModel } = getOpenAIConfig();
   if (!apiKey) {

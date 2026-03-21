@@ -226,6 +226,9 @@ async function handleChat() {
       AppState.chatHistory.push({ role: 'assistant', content: result.summary.join('; ') });
 
       AppState.currentMarkdown = result.markdown;
+      if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+        syncCurrentMarkdownToActiveVersion();
+      }
 
       // 更新气泡为操作摘要
       if (bubbleEl) bubbleEl.textContent = result.summary.join('\n');
@@ -317,6 +320,9 @@ function undoChat() {
   AppState.markdownRedoStack.push(AppState.currentMarkdown);
 
   AppState.currentMarkdown = AppState.markdownUndoStack.pop();
+  if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+    syncCurrentMarkdownToActiveVersion();
+  }
   renderMarkmap(AppState.currentMarkdown);
   $('markdownContent').textContent = AppState.currentMarkdown;
   appendChatMessage('assistant', '↩️ 已撤销上一步修改');
@@ -331,6 +337,9 @@ function redoChat() {
   AppState.markdownUndoStack.push(AppState.currentMarkdown);
 
   AppState.currentMarkdown = AppState.markdownRedoStack.pop();
+  if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+    syncCurrentMarkdownToActiveVersion();
+  }
   renderMarkmap(AppState.currentMarkdown);
   $('markdownContent').textContent = AppState.currentMarkdown;
   appendChatMessage('assistant', '↪️ 已重做修改');

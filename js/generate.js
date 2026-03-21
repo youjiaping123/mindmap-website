@@ -41,6 +41,10 @@ function switchToVersion(index) {
   const results = AppState.versionResults;
   if (!results || index < 0 || index >= results.length) return;
 
+  if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
+    syncCurrentMarkdownToActiveVersion();
+  }
+
   AppState.activeVersionIndex = index;
   const { markdown } = results[index];
   AppState.currentMarkdown = markdown;

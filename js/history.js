@@ -47,6 +47,8 @@ function loadHistory(id) {
 
   AppState.currentMarkdown = record.markdown;
   AppState.currentTopic = record.topic;
+  AppState.versionResults = [{ markdown: record.markdown }];
+  AppState.activeVersionIndex = 0;
 
   $('topicInput').value = record.topic;
 
@@ -63,6 +65,16 @@ function loadHistory(id) {
 
   $('markdownContent').textContent = AppState.currentMarkdown;
   switchTab('preview');
+
+  if (typeof renderVersionTabs === 'function') {
+    renderVersionTabs();
+  } else {
+    const container = $('versionTabs');
+    if (container) {
+      container.style.display = 'none';
+      container.innerHTML = '';
+    }
+  }
 
   if (window.innerWidth <= 640) toggleHistoryPanel();
 }

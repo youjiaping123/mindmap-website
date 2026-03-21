@@ -197,6 +197,7 @@ function showToast(message, type = 'info', duration = 3000) {
 }
 
 /* ===== 粒子背景 ===== */
+let _particleHandlers = null;
 
 /** 初始化粒子背景 */
 function initParticles() {
@@ -205,7 +206,6 @@ function initParticles() {
   const ctx = canvas.getContext('2d');
 
   let particles = [];
-  let animationId;
   let mouseX = -1000, mouseY = -1000;
 
   function resize() {
@@ -282,29 +282,47 @@ function initParticles() {
       }
     });
 
-    animationId = requestAnimationFrame(draw);
+    window._particleAnimId = requestAnimationFrame(draw);
   }
 
-  // 清理旧的动画
-  if (window._particleAnimId) cancelAnimationFrame(window._particleAnimId);
+  // 清理旧动画和旧监听，确保可重复初始化而不叠加
+  if (window._particleAnimId) {
+    cancelAnimationFrame(window._particleAnimId);
+    window._particleAnimId = null;
+  }
+  if (_particleHandlers) {
+    window.removeEventListener('resize', _particleHandlers.resize);
+    document.removeEventListener('mousemove', _particleHandlers.mousemove);
+    document.removeEventListener('mouseleave', _particleHandlers.mouseleave);
+    _particleHandlers = null;
+  }
 
   resize();
   createParticles();
   draw();
-  window._particleAnimId = animationId;
 
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     resize();
     createParticles();
-  });
+  };
 
-  document.addEventListener('mousemove', (e) => {
+  const onMouseMove = (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-  });
+  };
 
-  document.addEventListener('mouseleave', () => {
+  const onMouseLeave = () => {
     mouseX = -1000;
     mouseY = -1000;
-  });
+  };
+
+  window.addEventListener('resize', onResize);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseleave', onMouseLeave);
+
+  _particleHandlers = {
+    resize: onResize,
+    mousemove: onMouseMove,
+    mouseleave: onMouseLeave,
+  };
 }
