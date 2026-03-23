@@ -3,10 +3,9 @@
  */
 
 /** HTML 转义，防止 XSS */
+const _HTML_ESCAPE_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str ?? '').replace(/[&<>"']/g, (c) => _HTML_ESCAPE_MAP[c]);
 }
 
 /** 相对时间格式化 */
@@ -95,4 +94,69 @@ function getFinishReasonMessage(finishReason, label = '输出') {
 /** 流式连接未正常收尾时的提示 */
 function getUnexpectedStreamEndMessage(label = '输出') {
   return `AI ${label}的流式连接提前结束，结果可能不完整；这更像是网络/代理/Vercel 超时，而不是 max_tokens`;
+}
+
+/**
+ * 通用 SSE 流消费器
+ * 统一处理 ReadableStream → SSE 行解析 → delta 分发
+ * @param {ReadableStream} readableStream - response.body
+ * @param {Object} callbacks
+ * @param {function} [callbacks.onDelta] - (content, accumulated) => void
+ * @param {function} [callbacks.onFinishReason] - (reason) => void
+ * @returns {Promise<{ content: string, finishReason: string|null, completedNormally: boolean }>}
+ */
+async function consumeSSE(readableStream, callbacks = {}) {
+  const reader = readableStream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let accumulated = '';
+  let finishReason = null;
+  let sawDone = false;
+  let sseFinished = false;
+
+  function consumeLine(line) {
+    const delta = parseOpenAICompatibleSSELine(line);
+    if (!delta) return false;
+    if (delta.errorMessage) throw new Error(delta.errorMessage);
+    if (delta.finishReason) {
+      finishReason = delta.finishReason;
+      if (callbacks.onFinishReason) callbacks.onFinishReason(delta.finishReason);
+    }
+    if (delta.done) {
+      sawDone = true;
+      return true;
+    }
+    if (delta.content) {
+      accumulated += delta.content;
+      if (callbacks.onDelta) callbacks.onDelta(delta.content, accumulated);
+    }
+    return false;
+  }
+
+  while (!sseFinished) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (consumeLine(trimmed)) {
+        sseFinished = true;
+        break;
+      }
+    }
+  }
+
+  const trailingLine = buffer.trim();
+  if (trailingLine && !sseFinished) {
+    consumeLine(trailingLine);
+  }
+
+  return {
+    content: accumulated.trim(),
+    finishReason,
+    completedNormally: sawDone || !!finishReason,
+  };
 }

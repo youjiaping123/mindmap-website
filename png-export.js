@@ -330,10 +330,8 @@ const PngExport = (() => {
       mimeType = 'image/png',
     } = options;
 
-    const { exportBox } = createStandaloneSvgString(svgElement, {
-      padding,
-      backgroundColor,
-    });
+    // 只计算 exportBox，不克隆 SVG（避免双重 cloneNode + inlineStyles）
+    const exportBox = getExportBox(svgElement, padding);
     const { actualScale, limited, requestedScale } = getSafeScale(exportBox.width, exportBox.height, scale, options);
     const outputWidth = Math.max(1, Math.round(exportBox.width * actualScale));
     const outputHeight = Math.max(1, Math.round(exportBox.height * actualScale));

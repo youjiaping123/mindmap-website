@@ -4,13 +4,6 @@
  */
 
 /**
- * 解析 SSE 数据行，提取 content delta
- */
-function parseChatSSEDelta(line) {
-  return parseOpenAICompatibleSSELine(line);
-}
-
-/**
  * 判断流式累积的文本是否看起来像 JSON 操作指令
  * 用于流式阶段决定显示"正在生成修改指令"还是直接显示文字
  */
@@ -112,73 +105,31 @@ async function handleChat() {
       throw new Error(errMsg);
     }
 
-    // 流式读取 SSE
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let sseFinished = false;
-    let sawDone = false;
-    let finishReason = null;
-
     if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
 
-    function consumeLine(line) {
-      const delta = parseChatSSEDelta(line);
-      if (!delta) return false;
-      if (delta.errorMessage) throw new Error(delta.errorMessage);
-      if (delta.finishReason) finishReason = delta.finishReason;
-      if (delta.done) {
-        sawDone = true;
-        return true;
-      }
-
-      if (delta.content) {
-        fullResponse += delta.content;
-        // 流式更新气泡内容
+    // 流式读取 SSE（复用通用 consumeSSE）
+    const { content: rawResponse, finishReason, completedNormally } = await consumeSSE(response.body, {
+      onDelta: (_delta, accumulated) => {
+        fullResponse = accumulated;
         if (bubbleEl) {
-          // 如果看起来是 JSON 操作指令，显示处理中提示
           if (looksLikeJSON(fullResponse)) {
             bubbleEl.textContent = '🔧 正在生成修改指令...';
           } else {
             bubbleEl.textContent = fullResponse;
           }
-          // 自动滚动
           const body = $('chatBody');
           if (body) body.scrollTop = body.scrollHeight;
         }
-      }
+      },
+    });
 
-      return false;
-    }
-
-    while (!sseFinished) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (consumeLine(trimmed)) { sseFinished = true; break; }
-      }
-    }
-
-    const trailingLine = buffer.trim();
-    if (trailingLine && !sseFinished) {
-      sseFinished = consumeLine(trailingLine);
-    }
-
-    fullResponse = fullResponse.trim();
+    fullResponse = rawResponse;
 
     if (!fullResponse) {
       if (bubbleEl) bubbleEl.textContent = '⚠️ AI 返回了空结果，请重试';
       return;
     }
 
-    const completedNormally = sawDone || !!finishReason;
     if (!completedNormally) {
       const incompleteMessage = getUnexpectedStreamEndMessage('回复');
       if (bubbleEl) bubbleEl.textContent = `⚠️ ${incompleteMessage}`;

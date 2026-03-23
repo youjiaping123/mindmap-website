@@ -174,8 +174,10 @@ function toggleTheme() {
     document.documentElement.classList.remove('theme-transitioning');
   }, 600);
 
-  // 重新初始化粒子以匹配新主题
-  if (typeof initParticles === 'function') initParticles();
+  // 更新粒子颜色以匹配新主题（无需重建粒子）
+  if (_particleHandlers && _particleHandlers.updateColor) {
+    _particleHandlers.updateColor();
+  }
 }
 
 /* ===== Toast 通知系统 ===== */
@@ -198,6 +200,18 @@ function showToast(message, type = 'info', duration = 3000) {
 
 /* ===== 粒子背景 ===== */
 let _particleHandlers = null;
+let _particlePaused = false;
+
+/** 暂停/恢复粒子动画（heroSection 隐藏时节省资源） */
+function setParticlePaused(paused) {
+  if (_particlePaused === paused) return;
+  _particlePaused = paused;
+  if (!paused && !window._particleAnimId && typeof _particleDrawFn === 'function') {
+    window._particleAnimId = requestAnimationFrame(_particleDrawFn);
+  }
+}
+
+let _particleDrawFn = null;
 
 /** 初始化粒子背景 */
 function initParticles() {
@@ -207,6 +221,11 @@ function initParticles() {
 
   let particles = [];
   let mouseX = -1000, mouseY = -1000;
+  // 缓存主题颜色，避免每帧读取 DOM attribute
+  let cachedColor = document.documentElement.getAttribute('data-theme') === 'dark'
+    ? '129, 140, 248' : '99, 102, 241';
+  const CONNECTION_DIST_SQ = 130 * 130; // 预计算平方距离阈值
+  const MOUSE_DIST = 120;
 
   function resize() {
     canvas.width = window.innerWidth;
@@ -228,22 +247,31 @@ function initParticles() {
     }
   }
 
-  function getColor() {
+  /** 更新缓存颜色（仅主题切换时调用） */
+  function updateColor() {
     const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '129, 140, 248' : '99, 102, 241';
+    cachedColor = theme === 'dark' ? '129, 140, 248' : '99, 102, 241';
   }
 
   function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const color = getColor();
+    if (_particlePaused) {
+      window._particleAnimId = null;
+      return;
+    }
 
-    particles.forEach((p, i) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const color = cachedColor;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
       // 鼠标交互 - 斥力
       const dx = p.x - mouseX;
       const dy = p.y - mouseY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 120) {
-        const force = (120 - dist) / 120 * 0.8;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < MOUSE_DIST * MOUSE_DIST && distSq > 0) {
+        const dist = Math.sqrt(distSq);
+        const force = (MOUSE_DIST - dist) / MOUSE_DIST * 0.8;
         p.vx += (dx / dist) * force;
         p.vy += (dy / dist) * force;
       }
@@ -267,20 +295,22 @@ function initParticles() {
       ctx.fillStyle = `rgba(${color}, ${p.opacity})`;
       ctx.fill();
 
-      // 绘制连线
+      // 绘制连线（用平方距离避免 sqrt）
       for (let j = i + 1; j < particles.length; j++) {
         const p2 = particles[j];
-        const d = Math.sqrt((p.x - p2.x) ** 2 + (p.y - p2.y) ** 2);
-        if (d < 130) {
+        const cdx = p.x - p2.x;
+        const cdy = p.y - p2.y;
+        const cDistSq = cdx * cdx + cdy * cdy;
+        if (cDistSq < CONNECTION_DIST_SQ) {
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(p2.x, p2.y);
-          ctx.strokeStyle = `rgba(${color}, ${(1 - d / 130) * 0.12})`;
+          ctx.strokeStyle = `rgba(${color}, ${(1 - Math.sqrt(cDistSq) / 130) * 0.12})`;
           ctx.lineWidth = 0.5;
           ctx.stroke();
         }
       }
-    });
+    }
 
     window._particleAnimId = requestAnimationFrame(draw);
   }
@@ -299,6 +329,7 @@ function initParticles() {
 
   resize();
   createParticles();
+  _particleDrawFn = draw;
   draw();
 
   const onResize = () => {
@@ -324,5 +355,6 @@ function initParticles() {
     resize: onResize,
     mousemove: onMouseMove,
     mouseleave: onMouseLeave,
+    updateColor,
   };
 }

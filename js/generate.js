@@ -3,14 +3,6 @@
  * 依赖: state.js, utils.js, ui.js, history.js, markmap.js, chat.js
  */
 
-/**
- * 解析 SSE 数据行，提取 content delta
- * OpenAI SSE 格式: data: {"choices":[{"delta":{"content":"xxx"}}]}
- */
-function parseSSEDelta(line) {
-  return parseOpenAICompatibleSSELine(line);
-}
-
 /* ===== 多版本 Tab 渲染 & 切换 ===== */
 
 /** 渲染版本 Tab 按钮 */
@@ -85,72 +77,19 @@ function clearVersionResults() {
 /* ===== 单版本 SSE 流式消费 ===== */
 
 /**
- * 以流式方式消费 SSE 并实时渲染 markmap
- * @returns {Promise<{ content: string, finishReason: string | null, completedNormally: boolean }>} 最终结果
+ * 以流式方式消费 SSE 并实时渲染 markmap（委托给 consumeSSE）
  */
-async function _consumeSSEStream(response, abortSignal, { onDelta, onThrottledRender }) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let accumulated = '';
-  let finishReason = null;
-  let sawDone = false;
-  let sseFinished = false;
-
-  function consumeLine(line) {
-    const delta = parseSSEDelta(line);
-    if (!delta) return false;
-    if (delta.errorMessage) throw new Error(delta.errorMessage);
-    if (delta.finishReason) finishReason = delta.finishReason;
-    if (delta.done) {
-      sawDone = true;
-      return true;
-    }
-
-    if (delta.content) {
-      accumulated += delta.content;
-      if (onDelta) onDelta(delta.content, accumulated);
+async function _consumeSSEStream(response, _abortSignal, { onDelta, onThrottledRender }) {
+  return consumeSSE(response.body, {
+    onDelta: (content, accumulated) => {
+      if (onDelta) onDelta(content, accumulated);
       if (onThrottledRender) onThrottledRender(accumulated);
-    }
-
-    return false;
-  }
-
-  while (!sseFinished) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (consumeLine(trimmed)) {
-        sseFinished = true;
-        break;
-      }
-    }
-  }
-
-  const trailingLine = buffer.trim();
-  if (trailingLine && !sseFinished) {
-    sseFinished = consumeLine(trailingLine);
-  }
-
-  const completedNormally = sawDone || !!finishReason;
-
-  return {
-    content: accumulated.trim(),
-    finishReason,
-    completedNormally,
-  };
+    },
+  });
 }
 
 /**
  * 以非流式方式收集完整结果（用于额外版本的后台生成）
- * @returns {Promise<{ content: string, finishReason: string | null, completedNormally: boolean }>}
  */
 async function _collectFullResponse(topic, selectedModel, customPrompt, temperature, abortSignal) {
   const response = await fetch('/api/generate', {
@@ -166,64 +105,16 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
     throw new Error(errMsg);
   }
 
-  // 读取完整 SSE 流但不做实时渲染
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result = '';
-  let finishReason = null;
-  let sawDone = false;
-  let sseFinished = false;
+  const result = await consumeSSE(response.body);
 
-  function consumeLine(line) {
-    const delta = parseSSEDelta(line);
-    if (!delta) return false;
-    if (delta.errorMessage) throw new Error(delta.errorMessage);
-    if (delta.finishReason) finishReason = delta.finishReason;
-    if (delta.done) {
-      sawDone = true;
-      return true;
-    }
-    if (delta.content) result += delta.content;
-    return false;
+  if (result.finishReason && result.finishReason !== 'stop') {
+    console.warn('后台版本生成提前结束:', result.finishReason);
   }
-
-  while (!sseFinished) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (consumeLine(trimmed)) {
-        sseFinished = true;
-        break;
-      }
-    }
-  }
-
-  const trailingLine = buffer.trim();
-  if (trailingLine && !sseFinished) {
-    sseFinished = consumeLine(trailingLine);
-  }
-
-  const completedNormally = sawDone || !!finishReason;
-
-  if (finishReason && finishReason !== 'stop') {
-    console.warn('后台版本生成提前结束:', finishReason);
-  }
-
-  if (!completedNormally) {
+  if (!result.completedNormally) {
     console.warn('后台版本生成流异常中断，已忽略该版本');
   }
 
-  return {
-    content: result.trim(),
-    finishReason,
-    completedNormally,
-  };
+  return result;
 }
 
 /* ===== 主生成入口 ===== */
@@ -351,7 +242,7 @@ async function handleGenerate() {
 
     // ===== 消费版本 1 的 SSE 流 =====
     const { content: finalMd, finishReason, completedNormally } = await _consumeSSEStream(response, abortController.signal, {
-      onDelta: (delta, accumulated) => {
+      onDelta: (_delta, accumulated) => {
         AppState.currentMarkdown = accumulated;
       },
       onThrottledRender: () => scheduleRender(),
