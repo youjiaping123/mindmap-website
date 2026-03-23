@@ -401,167 +401,8 @@ const PngExport = (() => {
     };
   }
 
-  function isMobileBrowser() {
-    const ua = navigator.userAgent || '';
-    const maxTouchPoints = navigator.maxTouchPoints || 0;
-    const coarsePointer = typeof window.matchMedia === 'function'
-      && window.matchMedia('(pointer: coarse)').matches;
-    const isTouchMac = navigator.platform === 'MacIntel' && maxTouchPoints > 1;
-
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
-      || isTouchMac
-      || (coarsePointer && maxTouchPoints > 0 && Math.min(window.innerWidth, window.innerHeight) <= 1024);
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function createDownloadSession(filename) {
-    if (!isMobileBrowser()) return null;
-
-    let popup = null;
-    try {
-      popup = window.open('', '_blank', 'noopener');
-    } catch {
-      popup = null;
-    }
-
-    if (popup && !popup.closed) {
-      try {
-        popup.document.title = `正在准备 ${filename}`;
-        popup.document.body.innerHTML = `
-          <style>
-            body {
-              margin: 0;
-              padding: 24px 18px;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-              color: #0f172a;
-              background: #f8fafc;
-              line-height: 1.6;
-            }
-            .card {
-              max-width: 520px;
-              margin: 0 auto;
-              padding: 18px 20px;
-              border-radius: 18px;
-              background: #ffffff;
-              box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-            }
-            h1 {
-              margin: 0 0 12px;
-              font-size: 18px;
-            }
-            p {
-              margin: 0 0 8px;
-              font-size: 14px;
-              color: #475569;
-            }
-          </style>
-          <div class="card">
-            <h1>正在准备下载</h1>
-            <p>${escapeHtml(filename)}</p>
-            <p>文件生成完成后会自动开始。如果没有自动开始，这个页面会显示一个手动下载按钮。</p>
-          </div>
-        `;
-      } catch {
-        // Ignore popup rendering failures and keep the window handle for later fallback.
-      }
-    }
-
-    return { filename, popup };
-  }
-
-  function renderDownloadFallback(popup, url, filename) {
-    if (!popup || popup.closed) return false;
-
-    try {
-      popup.document.title = `下载 ${filename}`;
-      popup.document.body.innerHTML = `
-        <style>
-          body {
-            margin: 0;
-            padding: 24px 18px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            color: #0f172a;
-            background: #f8fafc;
-            line-height: 1.6;
-          }
-          .card {
-            max-width: 520px;
-            margin: 0 auto;
-            padding: 18px 20px;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-          }
-          h1 {
-            margin: 0 0 12px;
-            font-size: 18px;
-          }
-          p {
-            margin: 0 0 10px;
-            font-size: 14px;
-            color: #475569;
-          }
-          a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 44px;
-            padding: 0 18px;
-            border-radius: 999px;
-            background: #4f46e5;
-            color: #ffffff;
-            text-decoration: none;
-            font-weight: 600;
-          }
-        </style>
-        <div class="card">
-          <h1>下载已准备完成</h1>
-          <p>${escapeHtml(filename)}</p>
-          <p>如果浏览器没有自动开始下载，请点击下面的按钮。</p>
-          <a id="downloadLink" href="${url}" download="${escapeHtml(filename)}">下载文件</a>
-        </div>
-      `;
-
-      const link = popup.document.getElementById('downloadLink');
-      link?.click();
-      popup.focus?.();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function triggerDownload(blob, filename, downloadSession = null) {
+  function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
-
-    if (isMobileBrowser()) {
-      const popupReady = renderDownloadFallback(downloadSession?.popup || null, url, filename);
-
-      if (!popupReady) {
-        const newTab = window.open(url, '_blank', 'noopener');
-        if (!newTab) {
-          const fallbackLink = document.createElement('a');
-          fallbackLink.href = url;
-          fallbackLink.download = filename;
-          fallbackLink.target = '_blank';
-          fallbackLink.rel = 'noopener';
-          document.body.appendChild(fallbackLink);
-          fallbackLink.click();
-          document.body.removeChild(fallbackLink);
-        }
-      }
-
-      setTimeout(() => URL.revokeObjectURL(url), popupReady ? 60000 : 20000);
-      return;
-    }
-
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
@@ -589,33 +430,30 @@ const PngExport = (() => {
   }
 
   async function download(svgElement, filename, options = {}) {
-    const { downloadSession = null, ...exportOptions } = options;
     const result = await svgToImageBlob(svgElement, {
-      ...exportOptions,
+      ...options,
       mimeType: 'image/jpeg',
     });
 
-    await triggerDownload(result.blob, `${filename}.jpg`, downloadSession);
+    triggerDownload(result.blob, `${filename}.jpg`);
     return result;
   }
 
   async function downloadSvg(svgElement, filename, options = {}) {
-    const { downloadSession = null, ...exportOptions } = options;
-    const { svgString } = createStandaloneSvgString(svgElement, exportOptions);
+    const { svgString } = createStandaloneSvgString(svgElement, options);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    await triggerDownload(blob, `${filename}.svg`, downloadSession);
+    triggerDownload(blob, `${filename}.svg`);
     return { blob };
   }
 
   async function downloadPdf(svgElement, filename, options = {}) {
-    const { downloadSession = null, ...exportOptions } = options;
     if (typeof window.jspdf === 'undefined') {
       throw new Error('PDF 导出库未加载，请刷新页面重试');
     }
 
     const { jsPDF } = window.jspdf;
     const result = await svgToImageBlob(svgElement, {
-      ...exportOptions,
+      ...options,
       mimeType: 'image/jpeg',
     });
     const imageDataUrl = await blobToDataUrl(result.blob);
@@ -633,7 +471,7 @@ const PngExport = (() => {
     doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
 
     const pdfBlob = doc.output('blob');
-    await triggerDownload(pdfBlob, `${filename}.pdf`, downloadSession);
+    triggerDownload(pdfBlob, `${filename}.pdf`);
 
     return {
       ...result,
@@ -644,7 +482,6 @@ const PngExport = (() => {
   }
 
   return {
-    createDownloadSession,
     download,
     downloadPdf,
     downloadSvg,
