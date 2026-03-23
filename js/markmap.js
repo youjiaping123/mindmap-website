@@ -37,6 +37,10 @@ function getTransformer() {
  */
 let _animationMode = 'idle';
 
+function setMarkmapAnimationMode(mode) {
+  _animationMode = mode === 'streaming' ? 'streaming' : 'idle';
+}
+
 /**
  * Monkey-patch markmap 实例的 transition() 方法，
  * 用更丝滑的缓动函数替代 d3 默认的 easeCubicInOut（后者在短时长下
@@ -135,10 +139,10 @@ function updateMarkmap(markdown, animate = true) {
 
     if (!animate) {
       // 流式模式：线性缓动 + 较长时长 = 多个节点同时匀速滑入，连续流动感
-      _animationMode = 'streaming';
+      setMarkmapAnimationMode('streaming');
       AppState.markmapInstance.setOptions({ duration: 400 });
     } else {
-      _animationMode = 'idle';
+      setMarkmapAnimationMode('idle');
     }
 
     AppState.markmapInstance.setData(root);
@@ -147,6 +151,37 @@ function updateMarkmap(markdown, animate = true) {
     AppState.markmapInstance.fit();
   } catch (e) {
     renderMarkmap(markdown);
+  }
+}
+
+function transitionMarkmapToMarkdown(markdown, {
+  duration = 300,
+  restoreDuration = duration,
+  restoreDelay = 0,
+  fit = true,
+} = {}) {
+  if (!AppState.markmapInstance) {
+    renderMarkmap(markdown);
+    return;
+  }
+
+  setMarkmapAnimationMode('idle');
+  AppState.markmapInstance.setOptions({ duration });
+
+  const transformer = getTransformer();
+  const { root } = transformer.transform(markdown);
+  AppState.markmapInstance.setData(root);
+
+  if (fit) {
+    AppState.markmapInstance.fit();
+  }
+
+  if (restoreDuration !== duration || restoreDelay > 0) {
+    setTimeout(() => {
+      if (AppState.markmapInstance) {
+        AppState.markmapInstance.setOptions({ duration: restoreDuration });
+      }
+    }, restoreDelay);
   }
 }
 

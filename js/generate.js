@@ -41,20 +41,11 @@ function switchToVersion(index) {
   const { markdown } = results[index];
   AppState.currentMarkdown = markdown;
 
-  // 更新 markmap
-  if (AppState.markmapInstance) {
-    _animationMode = 'idle';
-    AppState.markmapInstance.setOptions({ duration: 600 });
-    const transformer = getTransformer();
-    const { root } = transformer.transform(markdown);
-    AppState.markmapInstance.setData(root);
-    AppState.markmapInstance.fit();
-    setTimeout(() => {
-      if (AppState.markmapInstance) AppState.markmapInstance.setOptions({ duration: 300 });
-    }, 700);
-  } else {
-    renderMarkmap(markdown);
-  }
+  transitionMarkmapToMarkdown(markdown, {
+    duration: 600,
+    restoreDuration: 300,
+    restoreDelay: 700,
+  });
 
   $('markdownContent').textContent = markdown;
 
@@ -269,19 +260,11 @@ async function handleGenerate() {
     AppState.currentMarkdown = finalMd;
 
     // 最终渲染：优雅展开
-    if (AppState.markmapInstance) {
-      _animationMode = 'idle';
-      AppState.markmapInstance.setOptions({ duration: 800 });
-      const transformer = getTransformer();
-      const { root } = transformer.transform(finalMd);
-      AppState.markmapInstance.setData(root);
-      AppState.markmapInstance.fit();
-      setTimeout(() => {
-        if (AppState.markmapInstance) AppState.markmapInstance.setOptions({ duration: 300 });
-      }, 900);
-    } else {
-      renderMarkmap(finalMd);
-    }
+    transitionMarkmapToMarkdown(finalMd, {
+      duration: 800,
+      restoreDuration: 300,
+      restoreDelay: 900,
+    });
     $('markdownContent').textContent = finalMd;
 
     // ===== 收集所有版本结果 =====
