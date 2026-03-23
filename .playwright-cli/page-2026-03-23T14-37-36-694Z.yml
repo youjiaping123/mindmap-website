@@ -1,0 +1,72 @@
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 🧠
+      - heading "ZevenAIv2.6" [level=1] [ref=e7]
+    - generic [ref=e8]:
+      - button "切换深色/浅色主题" [ref=e9] [cursor=pointer]:
+        - generic [ref=e10]: 🌙
+      - button "打开历史记录面板" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+  - complementary "历史记录" [ref=e16]:
+    - generic [ref=e17]:
+      - heading "历史记录" [level=2] [ref=e18]:
+        - img [ref=e19]
+        - text: 历史记录
+      - button "关闭历史面板" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+    - generic [ref=e28]:
+      - text: 📭
+      - paragraph [ref=e29]: 暂无历史记录
+      - paragraph [ref=e30]: 生成思维导图后会自动保存到这里
+  - generic [ref=e31]:
+    - generic [ref=e32]: AI Powered Mind Mapping
+    - heading "用 AI 创造 思维的无限可能" [level=2] [ref=e34]:
+      - text: 用 AI 创造
+      - text: 思维的无限可能
+    - paragraph [ref=e35]:
+      - text: 输入任意主题，AI 自动生成结构清晰的思维导图
+      - text: 支持在线预览、对话式修改、导出 Xmind、JPG、PDF 和 SVG
+  - generic [ref=e37]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]: 模型
+        - combobox [ref=e41] [cursor=pointer]:
+          - option "加载失败，将使用默认模型" [selected]
+      - generic [ref=e42]:
+        - generic [ref=e43]: 版本
+        - slider [ref=e44] [cursor=pointer]: "1"
+        - generic [ref=e45]: "1"
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - img [ref=e48]
+        - textbox "输入思维导图主题，例如：人工智能、项目管理、健康饮食..." [ref=e51]
+      - button "生成" [ref=e52] [cursor=pointer]:
+        - generic [ref=e53]:
+          - img [ref=e54]
+          - text: 生成
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - generic [ref=e58]: 风格预设
+        - generic [ref=e59]:
+          - button "⚡ 简洁" [ref=e60] [cursor=pointer]:
+            - generic [ref=e61]: ⚡
+            - text: 简洁
+          - button "📚 详尽" [ref=e62] [cursor=pointer]:
+            - generic [ref=e63]: 📚
+            - text: 详尽
+          - button "🎨 创意" [ref=e64] [cursor=pointer]:
+            - generic [ref=e65]: 🎨
+            - text: 创意
+      - button "自定义提示词 使用默认" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - generic [ref=e69]: 自定义提示词
+        - generic [ref=e70]: 使用默认
+  - contentinfo [ref=e71]:
+    - paragraph [ref=e72]:
+      - text: Buid by
+      - link "Jiaping" [ref=e73] [cursor=pointer]:
+        - /url: https://github.com/youjiaping123
+      - text: +
+      - link "Zeven" [ref=e74] [cursor=pointer]:
+        - /url: 1.1.1.1

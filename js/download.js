@@ -15,15 +15,21 @@ async function ensurePreviewReady() {
 /** 下载 .xmind 文件 */
 async function downloadXmind() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  const filename = AppState.currentTopic || 'mindmap';
+  const downloadSession = typeof XmindExport?.createDownloadSession === 'function'
+    ? XmindExport.createDownloadSession(`${filename}.xmind`)
+    : null;
+
   try {
     await ensurePreviewReady();
-    const filename = AppState.currentTopic || 'mindmap';
     const svgEl = $('markmapSvg');
     await XmindExport.download(AppState.currentMarkdown, filename, {
       svgElement: svgEl,
+      downloadSession,
     });
     showToast('Xmind 文件下载成功', 'success');
   } catch (error) {
+    downloadSession?.popup?.close?.();
     showError('下载 .xmind 失败: ' + error.message);
   }
 }
@@ -47,13 +53,21 @@ const BITMAP_EXPORT_OPTIONS = {
 /** 下载 JPG 图片 */
 async function downloadJpg() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  const filename = AppState.currentTopic || 'mindmap';
+  const downloadSession = typeof PngExport?.createDownloadSession === 'function'
+    ? PngExport.createDownloadSession(`${filename}.jpg`)
+    : null;
+
   try {
     await ensurePreviewReady();
     const svgEl = $('markmapSvg');
-    const filename = AppState.currentTopic || 'mindmap';
-    const result = await PngExport.download(svgEl, filename, BITMAP_EXPORT_OPTIONS);
+    const result = await PngExport.download(svgEl, filename, {
+      ...BITMAP_EXPORT_OPTIONS,
+      downloadSession,
+    });
     showToast(`JPG 图片下载成功${getExportAdvice(result)}`, 'success');
   } catch (error) {
+    downloadSession?.popup?.close?.();
     showError('导出图片失败: ' + error.message);
   }
 }
@@ -64,14 +78,22 @@ const downloadPng = downloadJpg;
 /** 下载 PDF 文件 */
 async function downloadPdf() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  const filename = AppState.currentTopic || 'mindmap';
+  const downloadSession = typeof PngExport?.createDownloadSession === 'function'
+    ? PngExport.createDownloadSession(`${filename}.pdf`)
+    : null;
+
   try {
     await ensurePreviewReady();
     const svgEl = $('markmapSvg');
-    const filename = AppState.currentTopic || 'mindmap';
     showToast('正在生成高清 PDF...', 'info');
-    const result = await PngExport.downloadPdf(svgEl, filename, BITMAP_EXPORT_OPTIONS);
+    const result = await PngExport.downloadPdf(svgEl, filename, {
+      ...BITMAP_EXPORT_OPTIONS,
+      downloadSession,
+    });
     showToast(`PDF 下载成功，已写入高分辨率 JPG${getExportAdvice(result)}`, 'success');
   } catch (error) {
+    downloadSession?.popup?.close?.();
     showError('导出 PDF 失败: ' + error.message);
   }
 }
@@ -79,16 +101,22 @@ async function downloadPdf() {
 /** 下载 SVG 矢量图 */
 async function downloadSvg() {
   if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  const filename = AppState.currentTopic || 'mindmap';
+  const downloadSession = typeof PngExport?.createDownloadSession === 'function'
+    ? PngExport.createDownloadSession(`${filename}.svg`)
+    : null;
+
   try {
     await ensurePreviewReady();
     const svgEl = $('markmapSvg');
-    const filename = AppState.currentTopic || 'mindmap';
     await PngExport.downloadSvg(svgEl, filename, {
       padding: 50,
       backgroundColor: '#ffffff',
+      downloadSession,
     });
     showToast('SVG 矢量图下载成功，可无限放大查看细节', 'success');
   } catch (error) {
+    downloadSession?.popup?.close?.();
     showError('导出图片失败: ' + error.message);
   }
 }

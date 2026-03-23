@@ -236,6 +236,77 @@ function _getLinesRange(nodeData) {
 let _contextMenuClickHandler = null;
 let _contextMenuSvgEl = null;
 let _contextMenuSvgHandler = null;
+let _contextMenuTouchCleanup = null;
+
+function _bindTouchContextMenu(svgEl) {
+  if (_contextMenuTouchCleanup) _contextMenuTouchCleanup();
+
+  let pressTimer = null;
+  let startX = 0;
+  let startY = 0;
+  let targetNode = null;
+  const LONG_PRESS_MS = 420;
+  const MOVE_THRESHOLD = 12;
+
+  function clearTouchContextMenu() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+    targetNode = null;
+  }
+
+  function onTouchStart(event) {
+    if (event.touches.length !== 1) {
+      clearTouchContextMenu();
+      return;
+    }
+
+    const nodeEl = event.target.closest('g.markmap-node');
+    if (!nodeEl) {
+      clearTouchContextMenu();
+      return;
+    }
+
+    clearTouchContextMenu();
+
+    const touch = event.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    targetNode = nodeEl;
+    pressTimer = window.setTimeout(() => {
+      pressTimer = null;
+      if (!targetNode) return;
+
+      const parsed = _parseNodeDatum(d3.select(targetNode).datum());
+      if (!parsed) return;
+
+      _removeContextMenu();
+      _createContextMenu({ clientX: startX, clientY: startY }, parsed);
+    }, LONG_PRESS_MS);
+  }
+
+  function onTouchMove(event) {
+    if (!pressTimer || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const moved = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+    if (moved > MOVE_THRESHOLD) clearTouchContextMenu();
+  }
+
+  svgEl.addEventListener('touchstart', onTouchStart, { passive: true });
+  svgEl.addEventListener('touchmove', onTouchMove, { passive: true });
+  svgEl.addEventListener('touchend', clearTouchContextMenu, { passive: true });
+  svgEl.addEventListener('touchcancel', clearTouchContextMenu, { passive: true });
+
+  _contextMenuTouchCleanup = () => {
+    clearTouchContextMenu();
+    svgEl.removeEventListener('touchstart', onTouchStart);
+    svgEl.removeEventListener('touchmove', onTouchMove);
+    svgEl.removeEventListener('touchend', clearTouchContextMenu);
+    svgEl.removeEventListener('touchcancel', clearTouchContextMenu);
+  };
+}
 
 function _setupContextMenu(mm) {
   const svgEl = mm.svg.node ? mm.svg.node() : mm.svg;
@@ -275,6 +346,7 @@ function _setupContextMenu(mm) {
 
   svgEl.addEventListener('contextmenu', _contextMenuSvgHandler);
   _contextMenuSvgEl = svgEl;
+  _bindTouchContextMenu(svgEl);
 }
 
 /** 创建并显示右键菜单 */
