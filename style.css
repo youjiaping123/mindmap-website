@@ -281,8 +281,12 @@ body {
 }
 
 .logo-icon {
-  font-size: 28px;
-  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: block;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -1657,7 +1661,8 @@ body.fake-fullscreen-active {
   }
 
   .logo-icon {
-    font-size: 22px;
+    width: 22px;
+    height: 22px;
   }
 
   .btn-label {
