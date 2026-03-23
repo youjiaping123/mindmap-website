@@ -1,192 +1,236 @@
 /**
  * 下载功能
- * 依赖: state.js, ui.js, export-bridge.js
+ * 采用 aimap.html 同款直接下载思路：
+ * 生成 Blob -> createObjectURL -> <a download> -> click()
  */
-
-let _exportBusy = false;
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function ensurePreviewReady() {
-  switchTab('preview');
-  await wait(160);
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = fileName;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
 }
 
-function setExportButtonsBusy(busy) {
-  document.querySelectorAll('.export-btn').forEach((button) => {
-    button.disabled = busy;
-  });
-}
+function resolveExportTopic() {
+  const markdown = String(AppState.currentMarkdown || '').trim();
+  const lines = markdown.split('\n');
 
-function getExportAdvice(result) {
-  if (!result?.limited) return '';
-  return '；导图过大时浏览器会限制位图尺寸，若需要无限放大细节，建议改用 SVG';
-}
-
-function getBitmapSuccessMessage(label, deliveryMode, result) {
-  const advice = getExportAdvice(result);
-  if (deliveryMode === 'preview') {
-    return `${label} 已打开预览页，可用 Safari 分享或存储${advice}`;
+  for (const line of lines) {
+    const match = line.match(/^#\s+(.+)/);
+    if (match) {
+      const topic = match[1].replace(/[^\w\u4e00-\u9fa5]/g, '').trim();
+      if (topic) return topic;
+    }
   }
-  return `${label} 下载成功${advice}`;
+
+  const currentTopic = String(AppState.currentTopic || '').replace(/[^\w\u4e00-\u9fa5]/g, '').trim();
+  return currentTopic || 'mindmap';
 }
 
-function getPdfSuccessMessage(deliveryMode, result) {
-  const advice = getExportAdvice(result);
-  if (deliveryMode === 'preview') {
-    return `PDF 已打开预览页，可用 Safari 分享或存储${advice}`;
-  }
-  return `PDF 下载成功，已写入高分辨率 JPG${advice}`;
+function generateExportFileName(extension) {
+  const topic = resolveExportTopic();
+  const now = new Date();
+  const dateStr = now.getFullYear().toString()
+    + String(now.getMonth() + 1).padStart(2, '0')
+    + String(now.getDate()).padStart(2, '0')
+    + String(now.getHours()).padStart(2, '0')
+    + String(now.getMinutes()).padStart(2, '0')
+    + String(now.getSeconds()).padStart(2, '0');
+
+  return `${topic}_${dateStr}.${extension}`;
 }
 
-function getXmindSuccessMessage(deliveryMode) {
-  if (deliveryMode === 'share-page') {
-    return 'XMind 导出页已打开，可保存到文件或分享';
-  }
-  if (deliveryMode === 'link-page') {
-    return 'XMind 导出页已打开，可点按或长按链接保存';
-  }
-  return 'XMind 文件下载成功';
+function getExportSvgElement() {
+  return $('markmapSvg');
 }
 
-async function runExport({
-  filename,
-  mimeType,
-  startMessage = '',
+async function ensureExportReady() {
+  const previewPanel = $('previewPanel');
+  if (!previewPanel) {
+    throw new Error('预览区域不存在');
+  }
+
+  if (getComputedStyle(previewPanel).display === 'none') {
+    switchTab('preview');
+    await wait(180);
+  }
+
+  const svgEl = getExportSvgElement();
+  if (!svgEl) {
+    throw new Error('找不到思维导图，无法导出');
+  }
+
+  const markmap = AppState.markmapInstance;
+  if (markmap && typeof markmap.fit === 'function') {
+    markmap.fit();
+    await wait(120);
+  }
+
+  const hasContent = !!svgEl.querySelector('g');
+  if (!hasContent) {
+    throw new Error('思维导图尚未完成渲染，请稍后再试');
+  }
+
+  return svgEl;
+}
+
+function setButtonLoading(button, loading, text) {
+  if (!button) return () => {};
+
+  const originalHtml = button.dataset.originalHtml || button.innerHTML;
+  if (!button.dataset.originalHtml) {
+    button.dataset.originalHtml = originalHtml;
+  }
+
+  if (loading) {
+    button.disabled = true;
+    button.textContent = text;
+  } else {
+    button.disabled = false;
+    button.innerHTML = button.dataset.originalHtml || originalHtml;
+  }
+
+  return () => {
+    button.disabled = false;
+    button.innerHTML = button.dataset.originalHtml || originalHtml;
+  };
+}
+
+async function exportWithDirectDownload({
+  buttonSelector,
+  loadingText,
   task,
   successMessage,
   errorPrefix,
 }) {
-  if (_exportBusy) {
-    showToast('导出进行中，请稍候', 'info');
-    return null;
-  }
+  const button = document.querySelector(buttonSelector);
+  if (button?.disabled) return;
 
-  _exportBusy = true;
-  setExportButtonsBusy(true);
-
-  let session = null;
+  const restore = setButtonLoading(button, true, loadingText);
 
   try {
-    session = ExportBridge.begin({ filename, mimeType });
-    await ensurePreviewReady();
-
-    if (startMessage) {
-      showToast(startMessage, 'info');
-    }
-
     const result = await task();
-    const delivery = await session.deliver(result.blob);
-    const message = typeof successMessage === 'function'
-      ? successMessage(delivery.deliveryMode, result)
-      : successMessage;
-
-    if (message) {
-      showToast(message, 'success');
+    downloadBlob(result.blob, result.filename);
+    if (successMessage) {
+      showToast(successMessage, 'success');
     }
-
     return result;
   } catch (error) {
-    if (session) session.fail(error.message);
     showError(`${errorPrefix}${error.message}`);
     return null;
   } finally {
-    _exportBusy = false;
-    setExportButtonsBusy(false);
+    restore();
   }
 }
 
-const BITMAP_EXPORT_OPTIONS = {
-  scale: 4,
-  padding: 50,
-  backgroundColor: '#ffffff',
-  quality: 0.86,
-  adaptiveScale: true,
-  targetPixels: 30000000,
-  adaptiveMinScale: 3.0,
-  adaptiveMaxScale: 4.5,
-};
-
-/** 下载 .xmind 文件 */
 async function downloadXmind() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  if (!String(AppState.currentMarkdown || '').trim()) {
+    showError('请先生成一个思维导图，再导出 XMind');
+    return;
+  }
 
-  const basename = AppState.currentTopic || 'mindmap';
-  const filename = `${basename}.xmind`;
-  const svgEl = $('markmapSvg');
+  await exportWithDirectDownload({
+    buttonSelector: '.xmind-btn',
+    loadingText: '导出中...',
+    task: async () => {
+      let svgEl = null;
+      try {
+        svgEl = await ensureExportReady();
+      } catch {
+        svgEl = null;
+      }
 
-  await runExport({
-    filename,
-    mimeType: 'application/vnd.xmind.workbook',
-    task: () => XmindExport.exportFile(AppState.currentMarkdown, basename, {
-      svgElement: svgEl,
-    }),
-    successMessage: getXmindSuccessMessage,
+      const filename = generateExportFileName('xmind');
+      const blob = await XmindExport.markdownToXmindBlob(AppState.currentMarkdown, {
+        svgElement: svgEl,
+      });
+
+      return {
+        blob,
+        filename,
+      };
+    },
+    successMessage: 'XMind 文件下载成功',
     errorPrefix: '下载 .xmind 失败: ',
   });
 }
 
-/** 下载 JPG 图片 */
 async function downloadJpg() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  await exportWithDirectDownload({
+    buttonSelector: '.jpg-btn',
+    loadingText: '导出中...',
+    task: async () => {
+      const svgEl = await ensureExportReady();
+      const result = await PngExport.exportJpg(svgEl, resolveExportTopic(), {
+        scale: 3,
+        padding: 40,
+        backgroundColor: '#ffffff',
+        quality: 0.9,
+        adaptiveScale: false,
+      });
 
-  const basename = AppState.currentTopic || 'mindmap';
-  const filename = `${basename}.jpg`;
-  const svgEl = $('markmapSvg');
-
-  await runExport({
-    filename,
-    mimeType: 'image/jpeg',
-    task: () => PngExport.exportJpg(svgEl, basename, {
-      ...BITMAP_EXPORT_OPTIONS,
-    }),
-    successMessage: (deliveryMode, result) => getBitmapSuccessMessage('JPG 图片', deliveryMode, result),
+      return {
+        blob: result.blob,
+        filename: generateExportFileName('jpg'),
+      };
+    },
+    successMessage: 'JPG 图片下载成功',
     errorPrefix: '导出图片失败: ',
   });
 }
 
-/** 下载 PDF 文件 */
 async function downloadPdf() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  await exportWithDirectDownload({
+    buttonSelector: '.pdf-btn',
+    loadingText: '导出中...',
+    task: async () => {
+      const svgEl = await ensureExportReady();
+      const result = await PngExport.exportPdf(svgEl, resolveExportTopic(), {
+        scale: 3,
+        padding: 40,
+        backgroundColor: '#ffffff',
+        quality: 0.9,
+        adaptiveScale: false,
+      });
 
-  const basename = AppState.currentTopic || 'mindmap';
-  const filename = `${basename}.pdf`;
-  const svgEl = $('markmapSvg');
-
-  await runExport({
-    filename,
-    mimeType: 'application/pdf',
-    startMessage: '正在生成高清 PDF...',
-    task: () => PngExport.exportPdf(svgEl, basename, {
-      ...BITMAP_EXPORT_OPTIONS,
-    }),
-    successMessage: getPdfSuccessMessage,
+      return {
+        blob: result.blob,
+        filename: generateExportFileName('pdf'),
+      };
+    },
+    successMessage: 'PDF 下载成功',
     errorPrefix: '导出 PDF 失败: ',
   });
 }
 
-/** 下载 SVG 矢量图 */
 async function downloadSvg() {
-  if (!AppState.currentMarkdown || !AppState.markmapInstance) return;
+  await exportWithDirectDownload({
+    buttonSelector: '.svg-btn',
+    loadingText: '导出中...',
+    task: async () => {
+      const svgEl = await ensureExportReady();
+      const result = await PngExport.exportSvg(svgEl, resolveExportTopic(), {
+        padding: 40,
+        backgroundColor: '#ffffff',
+      });
 
-  const basename = AppState.currentTopic || 'mindmap';
-  const filename = `${basename}.svg`;
-  const svgEl = $('markmapSvg');
-
-  await runExport({
-    filename,
-    mimeType: 'image/svg+xml',
-    task: () => PngExport.exportSvg(svgEl, basename, {
-      padding: 50,
-      backgroundColor: '#ffffff',
-    }),
-    successMessage: (deliveryMode) => (
-      deliveryMode === 'preview'
-        ? 'SVG 已打开预览页，可无限放大后再分享或存储'
-        : 'SVG 矢量图下载成功，可无限放大查看细节'
-    ),
+      return {
+        blob: result.blob,
+        filename: generateExportFileName('svg'),
+      };
+    },
+    successMessage: 'SVG 矢量图下载成功',
     errorPrefix: '导出图片失败: ',
   });
 }
