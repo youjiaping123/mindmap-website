@@ -1,11 +1,20 @@
 /**
  * 下载功能
- * 采用 aimap.html 同款直接下载思路：
- * 生成 Blob -> createObjectURL -> <a download> -> click()
+ * 参考 aimap.html：所有格式先走同一套 SVG 导出数据，再按需转换。
  */
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, ms, label) {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}超时，请重试`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function downloadBlob(blob, fileName) {
@@ -47,42 +56,7 @@ function generateExportFileName(extension) {
     + String(now.getHours()).padStart(2, '0')
     + String(now.getMinutes()).padStart(2, '0')
     + String(now.getSeconds()).padStart(2, '0');
-
   return `${topic}_${dateStr}.${extension}`;
-}
-
-function getExportSvgElement() {
-  return $('markmapSvg');
-}
-
-async function ensureExportReady() {
-  const previewPanel = $('previewPanel');
-  if (!previewPanel) {
-    throw new Error('预览区域不存在');
-  }
-
-  if (getComputedStyle(previewPanel).display === 'none') {
-    switchTab('preview');
-    await wait(180);
-  }
-
-  const svgEl = getExportSvgElement();
-  if (!svgEl) {
-    throw new Error('找不到思维导图，无法导出');
-  }
-
-  const markmap = AppState.markmapInstance;
-  if (markmap && typeof markmap.fit === 'function') {
-    markmap.fit();
-    await wait(120);
-  }
-
-  const hasContent = !!svgEl.querySelector('g');
-  if (!hasContent) {
-    throw new Error('思维导图尚未完成渲染，请稍后再试');
-  }
-
-  return svgEl;
 }
 
 function setButtonLoading(button, loading, text) {
@@ -107,31 +81,271 @@ function setButtonLoading(button, loading, text) {
   };
 }
 
-async function exportWithDirectDownload({
-  buttonSelector,
-  loadingText,
-  task,
-  successMessage,
-  errorPrefix,
-}) {
+async function ensureExportReady() {
+  const previewPanel = $('previewPanel');
+  if (!previewPanel) {
+    throw new Error('预览区域不存在');
+  }
+
+  if (getComputedStyle(previewPanel).display === 'none') {
+    switchTab('preview');
+    await wait(180);
+  }
+
+  const svgEl = $('markmapSvg');
+  if (!svgEl) {
+    throw new Error('找不到思维导图，无法导出');
+  }
+
+  const markmap = AppState.markmapInstance;
+  if (markmap && typeof markmap.fit === 'function') {
+    markmap.fit();
+    await wait(120);
+  }
+
+  const rootGroup = svgEl.querySelector('g');
+  if (!rootGroup) {
+    throw new Error('思维导图尚未完成渲染，请稍后再试');
+  }
+
+  return svgEl;
+}
+
+function getMindmapCssRules() {
+  let cssText = '';
+  const relevantSelectors = ['.markmap', '#markmapSvg', 'text', 'path', 'line', 'circle', 'foreignObject'];
+
+  for (const styleSheet of document.styleSheets) {
+    try {
+      if (!styleSheet.cssRules) continue;
+
+      for (const rule of styleSheet.cssRules) {
+        if (relevantSelectors.some((selector) => rule.selectorText?.includes(selector))) {
+          cssText += rule.cssText;
+        }
+      }
+    } catch {}
+  }
+
+  return cssText;
+}
+
+function createAimapStyleExportData(svgElement) {
+  const mainGroup = svgElement.querySelector('g');
+  if (!mainGroup) throw new Error('找不到思维导图，无法导出');
+
+  const bbox = mainGroup.getBBox();
+  if (!Number.isFinite(bbox.width) || !Number.isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) {
+    throw new Error('思维导图尚未完成渲染，请稍后再试');
+  }
+
+  const svgClone = svgElement.cloneNode(true);
+  svgClone.removeAttribute('style');
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgClone.setAttribute('width', String(bbox.width));
+  svgClone.setAttribute('height', String(bbox.height));
+  svgClone.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+
+  const groupInClone = svgClone.querySelector('g');
+  if (groupInClone) {
+    groupInClone.removeAttribute('transform');
+  }
+
+  const style = document.createElement('style');
+  style.textContent = getMindmapCssRules();
+  svgClone.insertBefore(style, svgClone.firstChild);
+
+  const serializer = new XMLSerializer();
+  let svgString = serializer.serializeToString(svgClone);
+  svgString = svgString
+    .replace(/(\w+)?:?xlink=/g, 'xmlns:xlink=')
+    .replace(/NS\d+:href/g, 'xlink:href');
+
+  return {
+    svgString,
+    width: Math.max(1, Math.round(bbox.width)),
+    height: Math.max(1, Math.round(bbox.height)),
+  };
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('加载导出图像失败'));
+    image.src = dataUrl;
+  });
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const done = (fn) => (value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
+
+    const rejectOnce = done(reject);
+    const resolveOnce = done(resolve);
+
+    const fallbackTimer = setTimeout(() => {
+      try {
+        const dataUrl = canvas.toDataURL(type, quality);
+        const [meta, data] = dataUrl.split(',');
+        const mime = (meta.match(/data:(.*?);base64/) || [])[1] || type;
+        const binary = atob(data || '');
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        resolveOnce(new Blob([bytes], { type: mime }));
+      } catch {
+        rejectOnce(new Error('导出图片失败'));
+      }
+    }, 3000);
+
+    try {
+      canvas.toBlob((blob) => {
+        clearTimeout(fallbackTimer);
+        if (blob) resolveOnce(blob);
+        else rejectOnce(new Error('导出图片失败'));
+      }, type, quality);
+    } catch (error) {
+      clearTimeout(fallbackTimer);
+      rejectOnce(error instanceof Error ? error : new Error('导出图片失败'));
+    }
+  });
+}
+
+async function createPngBlobFromExportData(exportData, options = {}) {
+  const margin = Number.isFinite(options.margin) ? options.margin : 20;
+  const scale = Number.isFinite(options.scale) ? options.scale : 3;
+  const quality = Number.isFinite(options.quality) ? options.quality : 0.92;
+  const mimeType = options.mimeType || 'image/png';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = (exportData.width + margin * 2) * scale;
+  canvas.height = (exportData.height + margin * 2) * scale;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('浏览器不支持 Canvas 导出');
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(exportData.svgString)))}`;
+  const img = await withTimeout(loadImageFromDataUrl(dataUrl), 12000, '渲染图片');
+  if (typeof img.decode === 'function') {
+    await withTimeout(img.decode(), 12000, '渲染图片');
+  }
+
+  ctx.drawImage(
+    img,
+    margin * scale,
+    margin * scale,
+    exportData.width * scale,
+    exportData.height * scale,
+  );
+
+  return withTimeout(canvasToBlob(canvas, mimeType, quality), 12000, '生成图片');
+}
+
+async function exportWithDirectDownload({ buttonSelector, task, successMessage, errorPrefix }) {
   const button = document.querySelector(buttonSelector);
   if (button?.disabled) return;
-
-  const restore = setButtonLoading(button, true, loadingText);
+  const restore = setButtonLoading(button, true, '导出中...');
 
   try {
     const result = await task();
     downloadBlob(result.blob, result.filename);
-    if (successMessage) {
-      showToast(successMessage, 'success');
-    }
-    return result;
+    if (successMessage) showToast(successMessage, 'success');
   } catch (error) {
-    showError(`${errorPrefix}${error.message}`);
-    return null;
+    const message = error instanceof Error ? error.message : String(error);
+    showError(`${errorPrefix}${message}`);
   } finally {
     restore();
   }
+}
+
+async function downloadSvg() {
+  await exportWithDirectDownload({
+    buttonSelector: '.svg-btn',
+    task: async () => {
+      const svgEl = await ensureExportReady();
+      const exportData = createAimapStyleExportData(svgEl);
+      const blob = new Blob([exportData.svgString], { type: 'image/svg+xml;charset=utf-8' });
+      return { blob, filename: generateExportFileName('svg') };
+    },
+    successMessage: 'SVG 矢量图下载成功',
+    errorPrefix: '导出 SVG 失败: ',
+  });
+}
+
+async function downloadJpg() {
+  await exportWithDirectDownload({
+    buttonSelector: '.jpg-btn',
+    task: async () => {
+      const svgEl = await ensureExportReady();
+      const exportData = createAimapStyleExportData(svgEl);
+      const blob = await createPngBlobFromExportData(exportData, {
+        mimeType: 'image/jpeg',
+        quality: 0.9,
+        scale: 3,
+      });
+      return { blob, filename: generateExportFileName('jpg') };
+    },
+    successMessage: 'JPG 图片下载成功',
+    errorPrefix: '导出 JPG 失败: ',
+  });
+}
+
+async function downloadPdf() {
+  await exportWithDirectDownload({
+    buttonSelector: '.pdf-btn',
+    task: async () => {
+      if (typeof window.jspdf === 'undefined') {
+        throw new Error('PDF 导出库未加载，请刷新页面重试');
+      }
+
+      const svgEl = await ensureExportReady();
+      const exportData = createAimapStyleExportData(svgEl);
+      const jpgBlob = await createPngBlobFromExportData(exportData, {
+        mimeType: 'image/jpeg',
+        quality: 0.9,
+        scale: 3,
+      });
+
+      const imageDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('图片编码失败'));
+        };
+        reader.onerror = () => reject(new Error('图片编码失败'));
+        reader.readAsDataURL(jpgBlob);
+      });
+
+      const { jsPDF } = window.jspdf;
+      const PX_TO_PT = 72 / 96;
+      const pdfWidth = Math.max(10, exportData.width * PX_TO_PT);
+      const pdfHeight = Math.max(10, exportData.height * PX_TO_PT);
+      const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+      const doc = new jsPDF({
+        orientation,
+        unit: 'pt',
+        format: [pdfWidth, pdfHeight],
+        compress: true,
+      });
+
+      doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
+      const blob = doc.output('blob');
+      return { blob, filename: generateExportFileName('pdf') };
+    },
+    successMessage: 'PDF 下载成功',
+    errorPrefix: '导出 PDF 失败: ',
+  });
 }
 
 async function downloadXmind() {
@@ -142,95 +356,19 @@ async function downloadXmind() {
 
   await exportWithDirectDownload({
     buttonSelector: '.xmind-btn',
-    loadingText: '导出中...',
     task: async () => {
-      let svgEl = null;
-      try {
-        svgEl = await ensureExportReady();
-      } catch {
-        svgEl = null;
-      }
-
-      const filename = generateExportFileName('xmind');
-      const blob = await XmindExport.markdownToXmindBlob(AppState.currentMarkdown, {
-        svgElement: svgEl,
-      });
-
-      return {
-        blob,
-        filename,
-      };
+      await ensureExportReady();
+      const blob = await withTimeout(
+        XmindExport.markdownToXmindBlob(AppState.currentMarkdown, {
+          // 手机端优先保证导出完成，跳过缩略图生成
+          svgElement: null,
+        }),
+        15000,
+        '生成 XMind',
+      );
+      return { blob, filename: generateExportFileName('xmind') };
     },
     successMessage: 'XMind 文件下载成功',
-    errorPrefix: '下载 .xmind 失败: ',
-  });
-}
-
-async function downloadJpg() {
-  await exportWithDirectDownload({
-    buttonSelector: '.jpg-btn',
-    loadingText: '导出中...',
-    task: async () => {
-      const svgEl = await ensureExportReady();
-      const result = await PngExport.exportJpg(svgEl, resolveExportTopic(), {
-        scale: 3,
-        padding: 40,
-        backgroundColor: '#ffffff',
-        quality: 0.9,
-        adaptiveScale: false,
-      });
-
-      return {
-        blob: result.blob,
-        filename: generateExportFileName('jpg'),
-      };
-    },
-    successMessage: 'JPG 图片下载成功',
-    errorPrefix: '导出图片失败: ',
-  });
-}
-
-async function downloadPdf() {
-  await exportWithDirectDownload({
-    buttonSelector: '.pdf-btn',
-    loadingText: '导出中...',
-    task: async () => {
-      const svgEl = await ensureExportReady();
-      const result = await PngExport.exportPdf(svgEl, resolveExportTopic(), {
-        scale: 3,
-        padding: 40,
-        backgroundColor: '#ffffff',
-        quality: 0.9,
-        adaptiveScale: false,
-      });
-
-      return {
-        blob: result.blob,
-        filename: generateExportFileName('pdf'),
-      };
-    },
-    successMessage: 'PDF 下载成功',
-    errorPrefix: '导出 PDF 失败: ',
-  });
-}
-
-async function downloadSvg() {
-  await exportWithDirectDownload({
-    buttonSelector: '.svg-btn',
-    loadingText: '导出中...',
-    task: async () => {
-      const svgEl = await ensureExportReady();
-      const result = await PngExport.exportSvg(svgEl, resolveExportTopic(), {
-        padding: 40,
-        backgroundColor: '#ffffff',
-      });
-
-      return {
-        blob: result.blob,
-        filename: generateExportFileName('svg'),
-      };
-    },
-    successMessage: 'SVG 矢量图下载成功',
-    errorPrefix: '导出图片失败: ',
+    errorPrefix: '下载 XMind 失败: ',
   });
 }
