@@ -192,6 +192,44 @@ const PngExport = (() => {
     };
   }
 
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function resolveRequestedScale(exportBox, options = {}) {
+    const DEFAULT_SCALE = 4;
+    const DEFAULT_MIN = 3.0;
+    const DEFAULT_MAX = 4.5;
+    const DEFAULT_TARGET = 30000000;
+
+    const {
+      adaptiveScale = false,
+    } = options;
+
+    const scale = Number.isFinite(options.scale) && options.scale > 0
+      ? options.scale : DEFAULT_SCALE;
+
+    if (!adaptiveScale) return scale;
+
+    const svgArea = exportBox.width * exportBox.height;
+    if (!Number.isFinite(svgArea) || svgArea <= 0) return scale;
+
+    const targetPixels = Number.isFinite(options.targetPixels) && options.targetPixels > 0
+      ? options.targetPixels : DEFAULT_TARGET;
+    let minScale = Number.isFinite(options.adaptiveMinScale) && options.adaptiveMinScale > 0
+      ? options.adaptiveMinScale : DEFAULT_MIN;
+    let maxScale = Number.isFinite(options.adaptiveMaxScale) && options.adaptiveMaxScale > 0
+      ? options.adaptiveMaxScale : DEFAULT_MAX;
+
+    if (minScale > maxScale) {
+      const tmp = minScale;
+      minScale = maxScale;
+      maxScale = tmp;
+    }
+
+    return clamp(Math.sqrt(targetPixels / svgArea), minScale, maxScale);
+  }
+
   function inlineStyles(original, clone) {
     const originalChildren = original.children;
     const cloneChildren = clone.children;
@@ -323,7 +361,6 @@ const PngExport = (() => {
 
   async function svgToImageBlob(svgElement, options = {}) {
     const {
-      scale = 4,
       padding = 40,
       backgroundColor = '#ffffff',
       quality = 0.95,
@@ -332,7 +369,8 @@ const PngExport = (() => {
 
     // 只计算 exportBox，不克隆 SVG（避免双重 cloneNode + inlineStyles）
     const exportBox = getExportBox(svgElement, padding);
-    const { actualScale, limited, requestedScale } = getSafeScale(exportBox.width, exportBox.height, scale, options);
+    const requestedScale = resolveRequestedScale(exportBox, options);
+    const { actualScale, limited } = getSafeScale(exportBox.width, exportBox.height, requestedScale, options);
     const outputWidth = Math.max(1, Math.round(exportBox.width * actualScale));
     const outputHeight = Math.max(1, Math.round(exportBox.height * actualScale));
 
@@ -358,6 +396,8 @@ const PngExport = (() => {
       requestedScale,
       actualScale,
       limited,
+      adaptiveScaleApplied: !!options.adaptiveScale,
+      svgArea: exportBox.width * exportBox.height,
     };
   }
 

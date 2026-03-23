@@ -34,10 +34,14 @@ function getExportAdvice(result) {
 }
 
 const BITMAP_EXPORT_OPTIONS = {
-  scale: 8,
+  scale: 4,
   padding: 50,
   backgroundColor: '#ffffff',
-  quality: 1,
+  quality: 0.86,
+  adaptiveScale: true,
+  targetPixels: 30000000,
+  adaptiveMinScale: 3.0,
+  adaptiveMaxScale: 4.5,
 };
 
 /** 下载 JPG 图片 */
