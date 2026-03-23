@@ -7,12 +7,12 @@
  *   - content.json   (思维导图 JSON 数据 — 新版 Xmind 使用)
  *   - content.xml    (兼容性 XML — 旧版 Xmind 8 使用，多语言警告)
  *   - metadata.json  (元信息 — 包含版本和创建者信息)
- *   - manifest.json  (清单文件 — 列出所有文件条目)
- *   - Thumbnails/Thumbnails.png (预览缩略图)
+ *   - manifest.json  (清单文件 — 列出核心文件条目)
+ *   - Thumbnails/thumbnail.png (预览缩略图)
  */
 
 const XmindExport = (() => {
-  const THUMBNAIL_PATH = 'Thumbnails/Thumbnails.png';
+  const THUMBNAIL_PATH = 'Thumbnails/thumbnail.png';
   const THUMBNAIL_EXPORT_OPTIONS = {
     scale: 1,
     minScale: 0.1,
@@ -23,6 +23,35 @@ const XmindExport = (() => {
     mimeType: 'image/png',
   };
 
+  /** Dawn 主题模板（基于 Xmind Yogurt 26.x 官方导出逆向） */
+  const DEFAULT_THEME = {
+    map: { properties: { 'svg:fill': '#ffffff', 'multi-line-colors': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE', 'color-list': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE' } },
+    centralTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': '#ADADAD', 'border-line-color': '#000000' } },
+    mainTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': 'inherited', 'line-color': 'inherited', 'border-line-color': 'inherited' } },
+    subTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': 'inherited', 'line-color': 'inherited', 'border-line-color': 'inherited' } },
+    floatingTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#EEEBEE', 'line-color': 'inherited', 'border-line-color': '#EEEBEE' } },
+    summaryTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': 'inherited', 'border-line-color': '#000000' } },
+    calloutTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': 'inherited', 'border-line-color': '#000000' } },
+    importantTopic: { properties: { 'svg:fill': '#7F00AC', 'border-line-color': '#7F00AC' } },
+    minorTopic: { properties: { 'svg:fill': '#82004A', 'border-line-color': '#82004A' } },
+    boundary: { properties: { 'fo:color': 'inherited', 'svg:fill': '#9B9B9B', 'line-color': '#00000066' } },
+    zone: { properties: { 'fo:color': 'inherited', 'svg:fill': '#9b9b9b33', 'border-line-color': '#00000066' } },
+    summary: { properties: { 'line-color': '#000000' } },
+    relationship: { properties: { 'fo:color': 'inherited', 'line-color': '#00000066' } },
+    colorThemeId: 'Dawn-#ffffff-MULTI_LINE_COLORS',
+  };
+
+  /** 克隆主题模板并为每个样式组件注入动态 UUID */
+  function buildTheme() {
+    const theme = JSON.parse(JSON.stringify(DEFAULT_THEME));
+    for (const key of Object.keys(theme)) {
+      const val = theme[key];
+      if (val && typeof val === 'object' && !Array.isArray(val) && val.properties) {
+        val.id = generateUUID();
+      }
+    }
+    return theme;
+  }
 
   /**
    * 生成唯一 ID (模拟 Xmind 的 ID 格式: 26位十六进制字符)
@@ -125,15 +154,21 @@ const XmindExport = (() => {
   /**
    * 将树形结构转换为 Xmind content.json 的 topic 格式
    *
-   * 新版格式特征（参考真实 .xmind 文件）：
-   *   - topic 只包含 id 和 title（不需要 class、structureClass 等字段）
+   * 新版格式特征（参考 Yogurt 26.x 真实 .xmind 文件）：
+   *   - 每个 topic 带 id, class: "topic", title
+   *   - root topic 额外带 structureClass: "org.xmind.ui.map.unbalanced"
    *   - children 使用 { attached: [...] } 结构
    */
   function treeToXmindTopic(node, isRoot) {
     const topic = {
-      id: isRoot ? 'central' : generateId(),
+      id: generateId(),
+      class: 'topic',
       title: node.title || '',
     };
+
+    if (isRoot) {
+      topic.structureClass = 'org.xmind.ui.map.unbalanced';
+    }
 
     if (node.children && node.children.length > 0) {
       topic.children = {
@@ -148,27 +183,27 @@ const XmindExport = (() => {
    * 生成 content.json — 新版 Xmind 使用的 JSON 格式
    *
    * 格式: 数组，每个元素是一个 sheet，包含:
-   *   - id: 固定 "root"
+   *   - id: 26位十六进制
    *   - revisionId: UUID v4 字符串
    *   - class: "sheet"
-   *   - rootTopic: 根主题（id 固定 "central"）
+   *   - rootTopic: 根主题（带 class/structureClass）
    *   - title: sheet 标题
-   *   - arrangeableLayerOrder: ["central"]
+   *   - arrangeableLayerOrder: [rootTopicId]
    *   - zones: []
-   *   - theme: {}
+   *   - theme: Dawn 主题模板（含 colorThemeId）
    */
   function generateContentJson(tree) {
     const rootTopic = treeToXmindTopic(tree, true);
 
     return [{
-      id: 'root',
+      id: generateId(),
       revisionId: generateUUID(),
       class: 'sheet',
-      rootTopic: rootTopic,
+      rootTopic,
       title: tree.title || 'Sheet 1',
-      arrangeableLayerOrder: ['central'],
+      arrangeableLayerOrder: [rootTopic.id],
       zones: [],
-      theme: {},
+      theme: buildTheme(),
     }];
   }
 
@@ -263,21 +298,16 @@ const XmindExport = (() => {
 
   /**
    * 生成 manifest.json — 文件清单
-   * 列出 ZIP 包中所有的文件条目
+   * 仅列出核心文件条目（匹配 Yogurt 26.x 官方格式）
    */
   function generateManifestJson(hasThumbnail = false) {
     const fileEntries = {
-      'metadata.json': {},
       'content.json': {},
-      'content.xml': {},
-      'manifest.json': {},
+      'metadata.json': {},
     };
 
     if (hasThumbnail) {
-      fileEntries['Thumbnails/'] = {};
-      fileEntries[THUMBNAIL_PATH] = {
-        'media-type': 'image/png',
-      };
+      fileEntries[THUMBNAIL_PATH] = {};
     }
 
     return {
