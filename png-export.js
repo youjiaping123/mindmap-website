@@ -401,17 +401,6 @@ const PngExport = (() => {
     };
   }
 
-  function triggerDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -429,24 +418,30 @@ const PngExport = (() => {
     });
   }
 
-  async function download(svgElement, filename, options = {}) {
+  async function exportJpg(svgElement, filename, options = {}) {
     const result = await svgToImageBlob(svgElement, {
       ...options,
       mimeType: 'image/jpeg',
     });
 
-    triggerDownload(result.blob, `${filename}.jpg`);
-    return result;
+    return {
+      ...result,
+      filename: `${filename}.jpg`,
+      mimeType: 'image/jpeg',
+    };
   }
 
-  async function downloadSvg(svgElement, filename, options = {}) {
+  async function exportSvg(svgElement, filename, options = {}) {
     const { svgString } = createStandaloneSvgString(svgElement, options);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    triggerDownload(blob, `${filename}.svg`);
-    return { blob };
+    return {
+      blob,
+      filename: `${filename}.svg`,
+      mimeType: 'image/svg+xml',
+    };
   }
 
-  async function downloadPdf(svgElement, filename, options = {}) {
+  async function exportPdf(svgElement, filename, options = {}) {
     if (typeof window.jspdf === 'undefined') {
       throw new Error('PDF 导出库未加载，请刷新页面重试');
     }
@@ -471,10 +466,12 @@ const PngExport = (() => {
     doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
 
     const pdfBlob = doc.output('blob');
-    triggerDownload(pdfBlob, `${filename}.pdf`);
 
     return {
       ...result,
+      blob: pdfBlob,
+      filename: `${filename}.pdf`,
+      mimeType: 'application/pdf',
       pdfWidth,
       pdfHeight,
       imageFormat: 'jpeg',
@@ -482,9 +479,9 @@ const PngExport = (() => {
   }
 
   return {
-    download,
-    downloadPdf,
-    downloadSvg,
+    exportJpg,
+    exportPdf,
+    exportSvg,
     svgToImageBlob,
   };
 })();

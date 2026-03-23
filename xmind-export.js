@@ -12,6 +12,7 @@
  */
 
 const XmindExport = (() => {
+  const XMIND_MIME_TYPE = 'application/vnd.xmind.workbook';
   const THUMBNAIL_PATH = 'Thumbnails/thumbnail.png';
   const THUMBNAIL_EXPORT_OPTIONS = {
     scale: 1,
@@ -385,18 +386,7 @@ const XmindExport = (() => {
       compression: 'STORE',
     });
 
-    return blob;
-  }
-
-  function triggerDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    return new Blob([blob], { type: XMIND_MIME_TYPE });
   }
 
   /**
@@ -405,10 +395,14 @@ const XmindExport = (() => {
    * @param {string} filename - 文件名（不含扩展名）
    * @param {object} [options] - 导出选项
    */
-  async function download(markdown, filename, options = {}) {
+  async function exportFile(markdown, filename, options = {}) {
     const blob = await markdownToXmindBlob(markdown, options);
-    triggerDownload(blob, `${filename}.xmind`);
+    return {
+      blob,
+      filename: `${filename}.xmind`,
+      mimeType: XMIND_MIME_TYPE,
+    };
   }
 
-  return { download, markdownToXmindBlob, parseMarkdownToTree };
+  return { exportFile, markdownToXmindBlob, parseMarkdownToTree };
 })();
