@@ -1692,16 +1692,23 @@ body.fake-fullscreen-active {
   .toolbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 6px;
   }
 
   .toolbar-left, .toolbar-right {
     justify-content: center;
     flex-wrap: wrap;
+    gap: 6px;
   }
 
   .export-btn {
-    padding: 8px 12px;
-    font-size: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+
+  .tab-btn {
+    min-height: 44px;
   }
 
   .markmap-container, #markmapSvg {

@@ -401,8 +401,35 @@ const PngExport = (() => {
     };
   }
 
-  function triggerDownload(blob, filename) {
+  function isMobileBrowser() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  }
+
+  async function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
+
+    if (isMobileBrowser()) {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: filename });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (err) {
+          // 用户取消分享或分享失败，回退到 window.open
+          if (err.name === 'AbortError') {
+            URL.revokeObjectURL(url);
+            return;
+          }
+        }
+      }
+      // Web Share API 不支持或失败，尝试 window.open 让用户手动保存
+      window.open(url, '_blank');
+      // 延迟释放，确保浏览器已打开
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return;
+    }
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
@@ -435,14 +462,14 @@ const PngExport = (() => {
       mimeType: 'image/jpeg',
     });
 
-    triggerDownload(result.blob, `${filename}.jpg`);
+    await triggerDownload(result.blob, `${filename}.jpg`);
     return result;
   }
 
   async function downloadSvg(svgElement, filename, options = {}) {
     const { svgString } = createStandaloneSvgString(svgElement, options);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    triggerDownload(blob, `${filename}.svg`);
+    await triggerDownload(blob, `${filename}.svg`);
     return { blob };
   }
 
@@ -471,7 +498,7 @@ const PngExport = (() => {
     doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
 
     const pdfBlob = doc.output('blob');
-    triggerDownload(pdfBlob, `${filename}.pdf`);
+    await triggerDownload(pdfBlob, `${filename}.pdf`);
 
     return {
       ...result,

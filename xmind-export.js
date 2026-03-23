@@ -388,6 +388,41 @@ const XmindExport = (() => {
     return blob;
   }
 
+  function isMobileBrowser() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  }
+
+  async function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+
+    if (isMobileBrowser()) {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: filename });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            URL.revokeObjectURL(url);
+            return;
+          }
+        }
+      }
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return;
+    }
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   /**
    * 触发下载 .xmind 文件
    * @param {string} markdown - Markdown 内容
@@ -396,14 +431,7 @@ const XmindExport = (() => {
    */
   async function download(markdown, filename, options = {}) {
     const blob = await markdownToXmindBlob(markdown, options);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}.xmind`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await triggerDownload(blob, `${filename}.xmind`);
   }
 
   return { download, markdownToXmindBlob, parseMarkdownToTree };
