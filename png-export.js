@@ -421,30 +421,15 @@ const PngExport = (() => {
       .replace(/"/g, '&quot;');
   }
 
-  function openDownloadWindow() {
-    let popup = null;
-
-    try {
-      // 移动端若直接传 noopener，部分浏览器会返回 null，后续无法复用预开页面。
-      popup = window.open('', '_blank');
-      if (popup && !popup.closed) {
-        try {
-          popup.opener = null;
-        } catch {
-          // Ignore opener hardening failures.
-        }
-      }
-    } catch {
-      popup = null;
-    }
-
-    return popup;
-  }
-
   function createDownloadSession(filename) {
     if (!isMobileBrowser()) return null;
 
-    const popup = openDownloadWindow();
+    let popup = null;
+    try {
+      popup = window.open('', '_blank', 'noopener');
+    } catch {
+      popup = null;
+    }
 
     if (popup && !popup.closed) {
       try {
@@ -560,16 +545,8 @@ const PngExport = (() => {
       const popupReady = renderDownloadFallback(downloadSession?.popup || null, url, filename);
 
       if (!popupReady) {
-        const newTab = openDownloadWindow();
-        if (newTab && !newTab.closed) {
-          try {
-            newTab.location.href = url;
-          } catch {
-            newTab.close?.();
-          }
-        }
-
-        if (!newTab || newTab.closed) {
+        const newTab = window.open(url, '_blank', 'noopener');
+        if (!newTab) {
           const fallbackLink = document.createElement('a');
           fallbackLink.href = url;
           fallbackLink.download = filename;
