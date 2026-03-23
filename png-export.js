@@ -401,15 +401,17 @@ const PngExport = (() => {
     };
   }
 
-  function triggerDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  async function deliverExportedBlob(blob, filename, mimeType, options = {}) {
+    const deliverySession = options.deliverySession
+      || (typeof FileDelivery !== 'undefined'
+        ? FileDelivery.begin({ filename, mimeType, strategy: 'direct-download' })
+        : null);
+
+    if (!deliverySession || typeof deliverySession.complete !== 'function') {
+      throw new Error('文件交付模块未加载，请刷新页面重试');
+    }
+
+    return deliverySession.complete(blob);
   }
 
   function blobToDataUrl(blob) {
@@ -430,20 +432,35 @@ const PngExport = (() => {
   }
 
   async function download(svgElement, filename, options = {}) {
+    const outputFilename = `${filename}.jpg`;
     const result = await svgToImageBlob(svgElement, {
       ...options,
       mimeType: 'image/jpeg',
     });
 
-    triggerDownload(result.blob, `${filename}.jpg`);
-    return result;
+    const delivery = await deliverExportedBlob(result.blob, outputFilename, 'image/jpeg', options);
+
+    return {
+      ...result,
+      filename: outputFilename,
+      mimeType: 'image/jpeg',
+      deliveryMode: delivery.deliveryMode,
+      shareSupported: delivery.shareSupported,
+    };
   }
 
   async function downloadSvg(svgElement, filename, options = {}) {
+    const outputFilename = `${filename}.svg`;
     const { svgString } = createStandaloneSvgString(svgElement, options);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    triggerDownload(blob, `${filename}.svg`);
-    return { blob };
+    const delivery = await deliverExportedBlob(blob, outputFilename, 'image/svg+xml', options);
+    return {
+      blob,
+      filename: outputFilename,
+      mimeType: 'image/svg+xml',
+      deliveryMode: delivery.deliveryMode,
+      shareSupported: delivery.shareSupported,
+    };
   }
 
   async function downloadPdf(svgElement, filename, options = {}) {
@@ -471,10 +488,15 @@ const PngExport = (() => {
     doc.addImage(imageDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'NONE');
 
     const pdfBlob = doc.output('blob');
-    triggerDownload(pdfBlob, `${filename}.pdf`);
+    const outputFilename = `${filename}.pdf`;
+    const delivery = await deliverExportedBlob(pdfBlob, outputFilename, 'application/pdf', options);
 
     return {
       ...result,
+      filename: outputFilename,
+      mimeType: 'application/pdf',
+      deliveryMode: delivery.deliveryMode,
+      shareSupported: delivery.shareSupported,
       pdfWidth,
       pdfHeight,
       imageFormat: 'jpeg',

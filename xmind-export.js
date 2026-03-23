@@ -388,15 +388,17 @@ const XmindExport = (() => {
     return blob;
   }
 
-  function triggerDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  async function deliverExportedBlob(blob, filename, options = {}) {
+    const deliverySession = options.deliverySession
+      || (typeof FileDelivery !== 'undefined'
+        ? FileDelivery.begin({ filename, mimeType: 'application/vnd.xmind.workbook', strategy: 'direct-download' })
+        : null);
+
+    if (!deliverySession || typeof deliverySession.complete !== 'function') {
+      throw new Error('文件交付模块未加载，请刷新页面重试');
+    }
+
+    return deliverySession.complete(blob);
   }
 
   /**
@@ -406,8 +408,17 @@ const XmindExport = (() => {
    * @param {object} [options] - 导出选项
    */
   async function download(markdown, filename, options = {}) {
+    const outputFilename = `${filename}.xmind`;
     const blob = await markdownToXmindBlob(markdown, options);
-    triggerDownload(blob, `${filename}.xmind`);
+    const delivery = await deliverExportedBlob(blob, outputFilename, options);
+    return {
+      blob,
+      filename: outputFilename,
+      mimeType: 'application/vnd.xmind.workbook',
+      deliveryMode: delivery.deliveryMode,
+      shareSupported: delivery.shareSupported,
+      unsupportedReason: delivery.unsupportedReason,
+    };
   }
 
   return { download, markdownToXmindBlob, parseMarkdownToTree };
