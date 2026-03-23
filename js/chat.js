@@ -229,12 +229,6 @@ function appendChatMessage(role, content) {
   return id;
 }
 
-/** 移除一条聊天消息 */
-function removeChatMessage(id) {
-  const el = $(id);
-  if (el) el.remove();
-}
-
 /** 设置对话加载状态 */
 function setChatLoading(loading) {
   AppState.chatLoading = loading;

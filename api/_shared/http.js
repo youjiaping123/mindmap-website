@@ -4,44 +4,6 @@ export function errorResponse(res, statusCode, message) {
   return res.status(statusCode).json({ error: message });
 }
 
-export async function callChatCompletions({
-  baseUrl,
-  apiKey,
-  model,
-  messages,
-  temperature = 0.7,
-  maxTokens = null,
-}) {
-  const payload = {
-    model,
-    temperature,
-    messages,
-  };
-
-  if (Number.isFinite(maxTokens) && maxTokens > 0) {
-    payload.max_tokens = maxTokens;
-  }
-
-  const response = await fetch(buildOpenAIUrl(baseUrl, 'chat/completions'), {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error('OpenAI API error:', response.status, errText);
-    throw new Error('AI_SERVICE_ERROR');
-  }
-
-  const data = await response.json();
-  const content = data?.choices?.[0]?.message?.content?.trim() || '';
-  return content;
-}
-
 export async function callChatCompletionsStream({
   baseUrl,
   apiKey,
