@@ -31,8 +31,8 @@ export default async function handler(req, res) {
     if (!topic || typeof topic !== 'string' || !topic.trim()) {
       return errorResponse(res, 400, 'Please provide a valid topic');
     }
-    if (topic.length > 200) {
-      return errorResponse(res, 400, 'Topic is too long (max 200 chars)');
+    if (topic.length > 2000) {
+      return errorResponse(res, 400, 'Topic is too long (max 2000 chars)');
     }
     if (customPrompt != null && typeof customPrompt !== 'string') {
       return errorResponse(res, 400, 'customPrompt must be a string');
