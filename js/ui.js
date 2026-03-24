@@ -45,9 +45,7 @@ function switchTab(tab) {
     markdownPanel.style.display = 'none';
     tabPreview.classList.add('active');
     tabMarkdown.classList.remove('active');
-    setTimeout(() => {
-      if (AppState.markmapInstance) AppState.markmapInstance.fit();
-    }, 100);
+    requestMarkmapFit(100);
   } else {
     previewPanel.style.display = 'none';
     markdownPanel.style.display = 'block';
@@ -81,10 +79,7 @@ function _enterFakeFullscreen(panel) {
   // push history state，让移动端返回键可退出全屏
   history.pushState({ fakeFullscreen: true }, '');
   _updateFullscreenIcon();
-  // 延迟 refit markmap
-  setTimeout(() => {
-    if (AppState.markmapInstance) AppState.markmapInstance.fit();
-  }, 150);
+  requestMarkmapFit(150);
 }
 
 /** 退出模拟全屏 */
@@ -95,9 +90,7 @@ function _exitFakeFullscreen(panel) {
     window.scrollTo(0, panel._savedScrollY);
   }
   _updateFullscreenIcon();
-  setTimeout(() => {
-    if (AppState.markmapInstance) AppState.markmapInstance.fit();
-  }, 150);
+  requestMarkmapFit(150);
 }
 
 /** 切换预览面板全屏（原生 + 模拟 fallback） */

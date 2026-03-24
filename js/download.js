@@ -99,7 +99,7 @@ async function ensureExportReady() {
 
   const markmap = AppState.markmapInstance;
   if (markmap && typeof markmap.fit === 'function') {
-    markmap.fit();
+    requestMarkmapFit();
     await wait(120);
   }
 

@@ -8,9 +8,7 @@ const MARKMAP_RESIZE_DEBOUNCE_MS = 200;
 const CHAT_INPUT_MAX_HEIGHT = 120;
 
 function refitMarkmap(delay = MARKMAP_REFIT_DELAY_MS) {
-  setTimeout(() => {
-    if (AppState.markmapInstance) AppState.markmapInstance.fit();
-  }, delay);
+  requestMarkmapFit(delay);
 }
 
 function initAppShell() {
@@ -55,7 +53,7 @@ function bindResponsiveHandlers() {
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (AppState.markmapInstance) AppState.markmapInstance.fit();
+      requestMarkmapFit();
     }, MARKMAP_RESIZE_DEBOUNCE_MS);
   });
 

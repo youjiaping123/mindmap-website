@@ -14,6 +14,21 @@ const MARKMAP_COLOR_PALETTE = [
   '#0891B2', // depth 6 — 青
 ];
 
+const MARKMAP_DEFAULT_OPTIONS = {
+  autoFit: true,
+  duration: 300,
+  maxWidth: 300,
+  paddingX: 16,
+  initialExpandLevel: -1,
+  zoom: true,
+  pan: true,
+  color: _getNodeColor,
+};
+
+const MARKMAP_STREAMING_OPTIONS = {
+  duration: 0,
+};
+
 /** 根据节点 depth 返回对应颜色 */
 function _getNodeColor(node) {
   const depth = node.state ? node.state.depth : 0;
@@ -31,57 +46,42 @@ function getTransformer() {
   return _transformer;
 }
 
-/**
- * 当前流式状态标记，供 transition 补丁判断使用哪种缓动
- * 'idle' = 正常交互, 'streaming' = 流式生成中
- */
-let _animationMode = 'idle';
 let _streamFitTimer = null;
 let _markmapUpdateQueue = Promise.resolve();
 
-function setMarkmapAnimationMode(mode) {
-  _animationMode = mode === 'streaming' ? 'streaming' : 'idle';
+function _scheduleAfterLayout(callback) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(callback);
+  });
 }
 
-function _scheduleStreamingFit(mm, delay = 900) {
-  if (_streamFitTimer) return;
-
-  _streamFitTimer = setTimeout(() => {
+function requestMarkmapFit(delay = 0) {
+  if (_streamFitTimer) {
+    clearTimeout(_streamFitTimer);
     _streamFitTimer = null;
-    if (!AppState.markmapInstance || AppState.markmapInstance !== mm) return;
+  }
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+  const runFit = () => {
+    const mm = AppState.markmapInstance;
+    if (!mm) return;
+    _markmapUpdateQueue = _markmapUpdateQueue
+      .catch(() => {})
+      .then(async () => {
         if (AppState.markmapInstance === mm) {
-          mm.fit();
+          await mm.fit();
         }
       });
-    });
-  }, delay);
-}
-
-/**
- * Monkey-patch markmap 实例的 transition() 方法，
- * 用更丝滑的缓动函数替代 d3 默认的 easeCubicInOut（后者在短时长下
- * 会产生"起步慢→加速→减速"的跳跃感）。
- *
- * - 流式期间（streaming）：easeLinear — 线性过渡在极短时长下最自然，
- *   多次叠加也不会抖动
- * - 正常交互（idle）：easeQuadOut — 快速启动、缓慢停止，
- *   感知上比 cubicInOut 流畅得多，没有"卡顿→弹跳"的感觉
- */
-function _patchTransition(mm) {
-  const origTransition = mm.transition.bind(mm);
-  mm.transition = function (sel) {
-    const t = origTransition(sel);
-    // 根据当前模式选缓动
-    if (_animationMode === 'streaming') {
-      t.ease(d3.easeLinear);
-    } else {
-      t.ease(d3.easeQuadOut);
-    }
-    return t;
   };
+
+  if (delay > 0) {
+    _streamFitTimer = setTimeout(() => {
+      _streamFitTimer = null;
+      _scheduleAfterLayout(runFit);
+    }, delay);
+    return;
+  }
+
+  _scheduleAfterLayout(runFit);
 }
 
 /** 用 markmap 渲染 Markdown 为 SVG 思维导图（首次创建） */
@@ -101,19 +101,7 @@ function renderMarkmap(markdown) {
     AppState.markmapInstance.destroy();
   }
 
-  AppState.markmapInstance = Markmap.create(svgEl, {
-    autoFit: true,
-    duration: 300,       // 展开/折叠动画时长
-    maxWidth: 300,
-    paddingX: 16,
-    initialExpandLevel: -1,
-    zoom: true,
-    pan: true,
-    color: _getNodeColor,
-  }, root);
-
-  // 补丁：替换缓动函数
-  _patchTransition(AppState.markmapInstance);
+  AppState.markmapInstance = Markmap.create(svgEl, MARKMAP_DEFAULT_OPTIONS, root);
 
   // 设置右键菜单
   _setupContextMenu(AppState.markmapInstance);
@@ -132,12 +120,7 @@ function renderMarkmap(markdown) {
     console.log('Toolbar not available:', e.message);
   }
 
-  // 等待浏览器完成布局后再 fit，用 rAF 双帧确保渲染完成
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (AppState.markmapInstance) AppState.markmapInstance.fit();
-    });
-  });
+  requestMarkmapFit();
 }
 
 /**
@@ -158,20 +141,18 @@ function updateMarkmap(markdown, animate = true) {
       const { root } = transformer.transform(markdown);
 
       if (!animate) {
-        // 流式模式下禁用布局动画，避免新的 setData/fit 抢在上一轮过渡结束前执行，
-        // 造成节点位置与文本尺寸短暂失步，表现为“文字被遮挡/重叠”。
-        setMarkmapAnimationMode('streaming');
-        AppState.markmapInstance.setOptions({ duration: 0 });
+        // 流式期间关闭布局动画，只保留最终完成后的完整过渡。
+        AppState.markmapInstance.setOptions(MARKMAP_STREAMING_OPTIONS);
       } else {
-        setMarkmapAnimationMode('idle');
+        AppState.markmapInstance.setOptions({ duration: MARKMAP_DEFAULT_OPTIONS.duration });
       }
 
       await AppState.markmapInstance.setData(root);
 
       if (!animate) {
-        _scheduleStreamingFit(AppState.markmapInstance);
+        requestMarkmapFit(900);
       } else {
-        await AppState.markmapInstance.fit();
+        requestMarkmapFit();
       }
     } catch (e) {
       renderMarkmap(markdown);
@@ -193,7 +174,6 @@ function transitionMarkmapToMarkdown(markdown, {
   }
 
   _markmapUpdateQueue = _markmapUpdateQueue.catch(() => {}).then(async () => {
-    setMarkmapAnimationMode('idle');
     AppState.markmapInstance.setOptions({ duration });
 
     const transformer = getTransformer();
@@ -201,7 +181,7 @@ function transitionMarkmapToMarkdown(markdown, {
     await AppState.markmapInstance.setData(root);
 
     if (fit) {
-      await AppState.markmapInstance.fit();
+      requestMarkmapFit();
     }
 
     if (restoreDuration !== duration || restoreDelay > 0) {
