@@ -36,9 +36,28 @@ function getTransformer() {
  * 'idle' = 正常交互, 'streaming' = 流式生成中
  */
 let _animationMode = 'idle';
+let _streamFitTimer = null;
+let _markmapUpdateQueue = Promise.resolve();
 
 function setMarkmapAnimationMode(mode) {
   _animationMode = mode === 'streaming' ? 'streaming' : 'idle';
+}
+
+function _scheduleStreamingFit(mm, delay = 900) {
+  if (_streamFitTimer) return;
+
+  _streamFitTimer = setTimeout(() => {
+    _streamFitTimer = null;
+    if (!AppState.markmapInstance || AppState.markmapInstance !== mm) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (AppState.markmapInstance === mm) {
+          mm.fit();
+        }
+      });
+    });
+  }, delay);
 }
 
 /**
@@ -130,28 +149,36 @@ function renderMarkmap(markdown) {
 function updateMarkmap(markdown, animate = true) {
   if (!AppState.markmapInstance) {
     renderMarkmap(markdown);
-    return;
+    return Promise.resolve();
   }
 
-  try {
-    const transformer = getTransformer();
-    const { root } = transformer.transform(markdown);
+  _markmapUpdateQueue = _markmapUpdateQueue.catch(() => {}).then(async () => {
+    try {
+      const transformer = getTransformer();
+      const { root } = transformer.transform(markdown);
 
-    if (!animate) {
-      // 流式模式：线性缓动 + 较长时长 = 多个节点同时匀速滑入，连续流动感
-      setMarkmapAnimationMode('streaming');
-      AppState.markmapInstance.setOptions({ duration: 400 });
-    } else {
-      setMarkmapAnimationMode('idle');
+      if (!animate) {
+        // 流式模式下禁用布局动画，避免新的 setData/fit 抢在上一轮过渡结束前执行，
+        // 造成节点位置与文本尺寸短暂失步，表现为“文字被遮挡/重叠”。
+        setMarkmapAnimationMode('streaming');
+        AppState.markmapInstance.setOptions({ duration: 0 });
+      } else {
+        setMarkmapAnimationMode('idle');
+      }
+
+      await AppState.markmapInstance.setData(root);
+
+      if (!animate) {
+        _scheduleStreamingFit(AppState.markmapInstance);
+      } else {
+        await AppState.markmapInstance.fit();
+      }
+    } catch (e) {
+      renderMarkmap(markdown);
     }
+  });
 
-    AppState.markmapInstance.setData(root);
-
-    // 流式期间也调 fit，线性缓动下视口平移是匀速的，不会跳动
-    AppState.markmapInstance.fit();
-  } catch (e) {
-    renderMarkmap(markdown);
-  }
+  return _markmapUpdateQueue;
 }
 
 function transitionMarkmapToMarkdown(markdown, {
@@ -162,27 +189,31 @@ function transitionMarkmapToMarkdown(markdown, {
 } = {}) {
   if (!AppState.markmapInstance) {
     renderMarkmap(markdown);
-    return;
+    return Promise.resolve();
   }
 
-  setMarkmapAnimationMode('idle');
-  AppState.markmapInstance.setOptions({ duration });
+  _markmapUpdateQueue = _markmapUpdateQueue.catch(() => {}).then(async () => {
+    setMarkmapAnimationMode('idle');
+    AppState.markmapInstance.setOptions({ duration });
 
-  const transformer = getTransformer();
-  const { root } = transformer.transform(markdown);
-  AppState.markmapInstance.setData(root);
+    const transformer = getTransformer();
+    const { root } = transformer.transform(markdown);
+    await AppState.markmapInstance.setData(root);
 
-  if (fit) {
-    AppState.markmapInstance.fit();
-  }
+    if (fit) {
+      await AppState.markmapInstance.fit();
+    }
 
-  if (restoreDuration !== duration || restoreDelay > 0) {
-    setTimeout(() => {
-      if (AppState.markmapInstance) {
-        AppState.markmapInstance.setOptions({ duration: restoreDuration });
-      }
-    }, restoreDelay);
-  }
+    if (restoreDuration !== duration || restoreDelay > 0) {
+      setTimeout(() => {
+        if (AppState.markmapInstance) {
+          AppState.markmapInstance.setOptions({ duration: restoreDuration });
+        }
+      }, restoreDelay);
+    }
+  });
+
+  return _markmapUpdateQueue;
 }
 
 /* ===== 右键菜单 & 节点编辑 ===== */
