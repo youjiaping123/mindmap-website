@@ -168,7 +168,12 @@ async function handleGenerate() {
   let renderTimer = null;
   let lastRenderTime = 0;
   let rafId = null;
+  let hasRenderedStreamPreview = false;
   const RENDER_INTERVAL = 400;
+
+  function hasVisibleMarkmapContent(markdown) {
+    return /[^\s#>*`\-\n]/.test(markdown);
+  }
 
   function scheduleRender() {
     const now = Date.now();
@@ -183,11 +188,16 @@ async function handleGenerate() {
     renderTimer = null;
     lastRenderTime = Date.now();
     const md = AppState.currentMarkdown.trim();
-    if (md) {
+    if (md && hasVisibleMarkmapContent(md)) {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        updateMarkmap(md, false);
+        if (!hasRenderedStreamPreview) {
+          renderMarkmap(md);
+          hasRenderedStreamPreview = true;
+        } else {
+          updateMarkmap(md, false);
+        }
         $('markdownContent').textContent = md;
       });
     }
@@ -260,6 +270,7 @@ async function handleGenerate() {
     AppState.currentMarkdown = finalMd;
 
     // 最终渲染：优雅展开
+    hasRenderedStreamPreview = true;
     transitionMarkmapToMarkdown(finalMd, {
       duration: 800,
       restoreDuration: 300,
