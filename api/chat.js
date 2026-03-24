@@ -1,5 +1,5 @@
 // Vercel Serverless Function - 对话式局部修改思维导图（流式）
-import '../../shared/ai-config/model-options.js';
+import '../shared/ai-config/model-options.js';
 import {
   getOpenAIConfig,
   getBodySizeLimits,

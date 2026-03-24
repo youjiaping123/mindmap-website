@@ -1,5 +1,5 @@
 // Vercel Serverless Function - 生成思维导图（SSE 流式）
-import '../../shared/ai-config/model-options.js';
+import '../shared/ai-config/model-options.js';
 import {
   getOpenAIConfig,
   getBodySizeLimits,
