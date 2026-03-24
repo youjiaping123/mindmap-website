@@ -37,7 +37,8 @@ export async function callChatCompletionsStream({
   if (!response.ok) {
     const errText = await response.text();
     console.error('OpenAI API error:', response.status, errText);
-    throw new Error('AI_SERVICE_ERROR');
+    const compact = String(errText || '').replace(/\s+/g, ' ').trim();
+    throw new Error(`AI_SERVICE_ERROR:${response.status}:${compact.slice(0, 500)}`);
   }
 
   return response;

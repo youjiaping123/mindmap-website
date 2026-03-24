@@ -149,8 +149,9 @@ export default async function handler(req, res) {
     await pipeSSE(upstreamResponse, req, res, upstreamAbortController);
 
   } catch (error) {
-    if (error.message === 'AI_SERVICE_ERROR') {
-      return errorResponse(res, 502, 'AI 服务异常，请稍后重试');
+    if (typeof error?.message === 'string' && error.message.startsWith('AI_SERVICE_ERROR:')) {
+      const [, statusCode, detail = ''] = error.message.split(':', 3);
+      return errorResponse(res, 502, `AI 服务异常（${statusCode}）${detail ? `: ${detail}` : ''}`);
     }
     console.error('Server error:', error);
     return errorResponse(res, 500, 'Internal server error');
