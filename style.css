@@ -943,6 +943,16 @@ body {
   font-weight: 400 !important;
 }
 
+/* markmap 内部节点动画优化 */
+#markmapSvg g {
+  will-change: transform, opacity;
+}
+
+/* 新节点 foreignObject 淡入用 CSS transition 辅助 */
+#markmapSvg foreignObject {
+  transition: opacity 0.15s ease-out;
+}
+
 /* markmap 连线用 geometricPrecision 让曲线更平滑 */
 #markmapSvg path {
   shape-rendering: geometricPrecision;

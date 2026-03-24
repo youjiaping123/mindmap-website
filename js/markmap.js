@@ -35,7 +35,7 @@ const MARKMAP_DEFAULT_OPTIONS = {
 };
 
 const MARKMAP_STREAMING_OPTIONS = {
-  duration: 180,
+  duration: 400,
 };
 
 /** 根据节点 depth 返回对应颜色 */
@@ -57,11 +57,29 @@ function getTransformer() {
 
 let _streamFitTimer = null;
 let _markmapUpdateQueue = Promise.resolve();
+let _animationMode = 'idle';
+
+function setMarkmapAnimationMode(mode) {
+  _animationMode = mode === 'streaming' ? 'streaming' : 'idle';
+}
 
 function _scheduleAfterLayout(callback) {
   requestAnimationFrame(() => {
     requestAnimationFrame(callback);
   });
+}
+
+function _patchTransition(mm) {
+  const origTransition = mm.transition.bind(mm);
+  mm.transition = function (sel) {
+    const t = origTransition(sel);
+    if (_animationMode === 'streaming') {
+      t.ease(d3.easeLinear);
+    } else {
+      t.ease(d3.easeQuadOut);
+    }
+    return t;
+  };
 }
 
 function requestMarkmapFit(delay = 0) {
@@ -111,6 +129,7 @@ function renderMarkmap(markdown) {
   }
 
   AppState.markmapInstance = Markmap.create(svgEl, MARKMAP_DEFAULT_OPTIONS, root);
+  _patchTransition(AppState.markmapInstance);
 
   // 设置右键菜单
   _setupContextMenu(AppState.markmapInstance);
@@ -150,16 +169,17 @@ function updateMarkmap(markdown, animate = true) {
       const { root } = transformer.transform(markdown);
 
       if (!animate) {
-        // 流式期间关闭布局动画，只保留最终完成后的完整过渡。
+        setMarkmapAnimationMode('streaming');
         AppState.markmapInstance.setOptions(MARKMAP_STREAMING_OPTIONS);
       } else {
+        setMarkmapAnimationMode('idle');
         AppState.markmapInstance.setOptions({ duration: MARKMAP_DEFAULT_OPTIONS.duration });
       }
 
       await AppState.markmapInstance.setData(root);
 
       if (!animate) {
-        requestMarkmapFit(900);
+        await AppState.markmapInstance.fit();
       } else {
         requestMarkmapFit();
       }
@@ -183,6 +203,7 @@ function transitionMarkmapToMarkdown(markdown, {
   }
 
   _markmapUpdateQueue = _markmapUpdateQueue.catch(() => {}).then(async () => {
+    setMarkmapAnimationMode('idle');
     AppState.markmapInstance.setOptions({ duration });
 
     const transformer = getTransformer();
