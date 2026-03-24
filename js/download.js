@@ -17,18 +17,92 @@ function withTimeout(promise, ms, label) {
   });
 }
 
-function downloadBlob(blob, fileName) {
+function isAppleMobileLike() {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+
+  return /iPhone|iPad|iPod/i.test(ua)
+    || (/Mac/i.test(platform) && maxTouchPoints > 1);
+}
+
+function shouldPreferPreviewFallback(blob) {
+  if (!isAppleMobileLike()) return false;
+  return /^application\/pdf\b/i.test(blob?.type || '');
+}
+
+async function tryShareBlob(blob, fileName) {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return { shared: false, cancelled: false };
+  }
+
+  if (typeof File !== 'function') {
+    return { shared: false, cancelled: false };
+  }
+
+  const file = new File([blob], fileName, {
+    type: blob?.type || 'application/octet-stream',
+  });
+  const shareData = {
+    files: [file],
+    title: fileName,
+  };
+
+  if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [file] })) {
+    return { shared: false, cancelled: false };
+  }
+
+  try {
+    await navigator.share(shareData);
+    return { shared: true, cancelled: false };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return { shared: false, cancelled: true };
+    }
+
+    return { shared: false, cancelled: false };
+  }
+}
+
+async function downloadBlob(blob, fileName) {
+  const preferPreviewFallback = shouldPreferPreviewFallback(blob);
+  if (preferPreviewFallback) {
+    const shareResult = await tryShareBlob(blob, fileName);
+    if (shareResult.shared || shareResult.cancelled) {
+      return {
+        delivered: shareResult.shared,
+        cancelled: shareResult.cancelled,
+        method: 'share',
+      };
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
 
   link.href = url;
-  link.download = fileName;
   link.rel = 'noopener';
+  if (preferPreviewFallback) {
+    link.target = '_blank';
+  } else {
+    link.download = fileName;
+  }
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  URL.revokeObjectURL(url);
+  // iOS Safari 等浏览器在点击后可能异步打开 blob 预览，立即 revoke 会导致后续“存储到文件”失效。
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 60_000);
+
+  return {
+    delivered: true,
+    cancelled: false,
+    method: preferPreviewFallback ? 'preview' : 'download',
+  };
 }
 
 function resolveExportTopic() {
@@ -259,7 +333,17 @@ async function exportWithDirectDownload({ buttonSelector, task, successMessage, 
 
   try {
     const result = await task();
-    downloadBlob(result.blob, result.filename);
+    const delivery = await downloadBlob(result.blob, result.filename);
+
+    if (delivery?.cancelled) {
+      return;
+    }
+
+    if (delivery?.method === 'preview') {
+      showToast('已打开预览页，请使用系统菜单“存储到文件”或“下载”保存 PDF', 'info', 5000);
+      return;
+    }
+
     if (successMessage) showToast(successMessage, 'success');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

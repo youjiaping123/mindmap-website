@@ -17,12 +17,21 @@ const MARKMAP_COLOR_PALETTE = [
 const MARKMAP_DEFAULT_OPTIONS = {
   autoFit: true,
   duration: 300,
-  maxWidth: 300,
+  maxWidth: 220,
   paddingX: 16,
   initialExpandLevel: -1,
   zoom: true,
   pan: true,
   color: _getNodeColor,
+  style: (id) => `
+    #${id} .markmap-foreign div {
+      max-width: var(--markmap-max-width);
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.45;
+    }
+  `,
 };
 
 const MARKMAP_STREAMING_OPTIONS = {
