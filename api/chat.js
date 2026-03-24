@@ -1,4 +1,5 @@
 // Vercel Serverless Function - 对话式局部修改思维导图（流式）
+import '../../shared/ai-config/model-options.js';
 import {
   getOpenAIConfig,
   getBodySizeLimits,
@@ -139,7 +140,7 @@ export default async function handler(req, res) {
       apiKey,
       model: selectedModel,
       messages,
-      temperature: 0.3,
+      temperature: globalThis.MINDMAP_MODEL_OPTIONS?.chatTemperature ?? 0.3,
       maxTokens: chatMaxTokens,
       signal: upstreamAbortController.signal,
     });

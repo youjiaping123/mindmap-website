@@ -211,7 +211,9 @@ async function handleGenerate() {
       : null;
 
     // ===== 版本 1: 始终流式预览 =====
-    const baseTemp = typeof presetTemperature === 'number' ? presetTemperature : 0.7;
+    const baseTemp = typeof presetTemperature === 'number'
+      ? presetTemperature
+      : (globalThis.MINDMAP_MODEL_OPTIONS?.defaultGenerateTemperature ?? 0.7);
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -230,7 +232,9 @@ async function handleGenerate() {
     if (versionCount > 1) {
       for (let i = 1; i < versionCount; i++) {
         // 每个额外版本使用不同 temperature
-        const temp = Math.min(baseTemp + i * 0.15, 1.5);
+        const step = globalThis.MINDMAP_MODEL_OPTIONS?.streamVersionTemperatureStep ?? 0.15;
+        const maxTemp = globalThis.MINDMAP_MODEL_OPTIONS?.maxGenerateTemperature ?? 1.5;
+        const temp = Math.min(baseTemp + i * step, maxTemp);
         extraPromises.push(
           _collectFullResponse(topic, selectedModel, customPrompt, temp, abortController.signal)
             .catch((err) => {

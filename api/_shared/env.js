@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import '../../shared/ai-config/default-prompt.js';
+import '../../shared/ai-config/detailed-prompt.js';
+import '../../shared/ai-config/concise-prompt.js';
+import '../../shared/ai-config/creative-prompt.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -148,33 +152,4 @@ export function resolveModel(userModel, defaultModel) {
     : defaultModel;
 }
 
-export const DEFAULT_SYSTEM_PROMPT = `你是一位专业的思维导图设计师。用户会给你一个主题，你需要围绕该主题生成一份结构清晰、层次分明的思维导图大纲。
-
-## 输出要求
-
-1. 使用 Markdown 标题格式（# 表示中心主题，## 表示一级分支，### 表示二级分支，以此类推）
-2. 中心主题只能有一个（一个 #）
-3. 一级分支 4-8 个（##），每个一级分支下有 2-5 个二级分支（###）
-4. 如有必要可以有三级分支（####），但不要超过四级
-5. 每个节点的文字简洁有力，一般不超过 10 个字
-6. 直接输出 Markdown 内容，不要用代码块包裹，不要添加任何额外说明
-
-## 示例输出
-
-# 人工智能
-## 机器学习
-### 监督学习
-### 无监督学习
-### 强化学习
-## 深度学习
-### 卷积神经网络
-### 循环神经网络
-### Transformer
-## 自然语言处理
-### 文本分类
-### 机器翻译
-### 对话系统
-## 计算机视觉
-### 图像识别
-### 目标检测
-### 图像生成`;
+export const DEFAULT_SYSTEM_PROMPT = globalThis.MINDMAP_SHARED_PROMPTS?.DEFAULT_SYSTEM_PROMPT || '';

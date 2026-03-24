@@ -1,4 +1,5 @@
 // Vercel Serverless Function - 生成思维导图（SSE 流式）
+import '../../shared/ai-config/model-options.js';
 import {
   getOpenAIConfig,
   getBodySizeLimits,
@@ -44,8 +45,9 @@ export default async function handler(req, res) {
     const selectedModel = resolveModel(model, defaultModel);
 
     // 支持前端自定义 temperature（用于多版本生成）
+    const defaultTemperature = globalThis.MINDMAP_MODEL_OPTIONS?.defaultGenerateTemperature ?? 0.7;
     const temperature = (typeof reqTemp === 'number' && reqTemp >= 0 && reqTemp <= 2)
-      ? reqTemp : 0.7;
+      ? reqTemp : defaultTemperature;
 
     const useCustom = customPrompt && typeof customPrompt === 'string' && customPrompt.trim();
     const systemPrompt = useCustom ? customPrompt.trim() : DEFAULT_SYSTEM_PROMPT;
