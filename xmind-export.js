@@ -15,30 +15,258 @@ const XmindExport = (() => {
   const XMIND_MIME_TYPE = 'application/vnd.xmind.workbook';
   const THUMBNAIL_PATH = 'Thumbnails/thumbnail.png';
   const THUMBNAIL_EXPORT_OPTIONS = {
-    scale: 1,
-    minScale: 0.1,
-    maxOutputDimension: 512,
-    maxOutputArea: 512 * 512,
+    width: 1024,
+    height: 634,
+    maxSizeBytes: 200 * 1024, // 200KB
     padding: 24,
     backgroundColor: '#ffffff',
-    mimeType: 'image/png',
   };
 
-  /** Dawn 主题模板（基于 Xmind Yogurt 26.x 官方导出逆向） */
+  /** Dawn 主题模板（基于 Xmind Yogurt 26.x 官方导出逆向, 完整属性） */
   const DEFAULT_THEME = {
-    map: { properties: { 'svg:fill': '#ffffff', 'multi-line-colors': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE', 'color-list': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE' } },
-    centralTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': '#ADADAD', 'border-line-color': '#000000' } },
-    mainTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': 'inherited', 'line-color': 'inherited', 'border-line-color': 'inherited' } },
-    subTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': 'inherited', 'line-color': 'inherited', 'border-line-color': 'inherited' } },
-    floatingTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#EEEBEE', 'line-color': 'inherited', 'border-line-color': '#EEEBEE' } },
-    summaryTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': 'inherited', 'border-line-color': '#000000' } },
-    calloutTopic: { properties: { 'fo:color': 'inherited', 'svg:fill': '#000000', 'line-color': 'inherited', 'border-line-color': '#000000' } },
-    importantTopic: { properties: { 'svg:fill': '#7F00AC', 'border-line-color': '#7F00AC' } },
-    minorTopic: { properties: { 'svg:fill': '#82004A', 'border-line-color': '#82004A' } },
-    boundary: { properties: { 'fo:color': 'inherited', 'svg:fill': '#9B9B9B', 'line-color': '#00000066' } },
-    zone: { properties: { 'fo:color': 'inherited', 'svg:fill': '#9b9b9b33', 'border-line-color': '#00000066' } },
-    summary: { properties: { 'line-color': '#000000' } },
-    relationship: { properties: { 'fo:color': 'inherited', 'line-color': '#00000066' } },
+    map: {
+      properties: {
+        'svg:fill': '#ffffff',
+        'multi-line-colors': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE',
+        'color-list': '#FF6B6B #FF9F69 #97D3B6 #88E2D7 #6FD0F9 #E18BEE',
+        'line-tapered': 'tapered',
+      },
+    },
+    centralTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '30pt',
+        'fo:font-weight': '700',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'center',
+        'svg:fill': '#000000',
+        'fill-pattern': 'none',
+        'line-width': '3pt',
+        'line-color': '#ADADAD',
+        'line-pattern': 'solid',
+        'border-line-color': '#000000',
+        'border-line-width': '3',
+        'border-line-pattern': 'solid',
+        'shape-class': 'org.xmind.topicShape.roundedRect',
+        'line-class': 'org.xmind.branchConnection.roundedfold',
+        'arrow-end-class': 'org.xmind.arrowShape.none',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    mainTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '18pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': 'inherited',
+        'fill-pattern': 'none',
+        'line-width': '2pt',
+        'line-color': 'inherited',
+        'line-pattern': 'inherited',
+        'border-line-color': 'inherited',
+        'border-line-width': '3',
+        'border-line-pattern': 'inherited',
+        'shape-class': 'org.xmind.topicShape.underline',
+        'line-class': 'org.xmind.branchConnection.bight',
+        'arrow-end-class': 'inherited',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    subTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '14pt',
+        'fo:font-weight': '400',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': 'inherited',
+        'fill-pattern': 'none',
+        'line-width': 'inherited',
+        'line-color': 'inherited',
+        'line-pattern': 'inherited',
+        'border-line-color': 'inherited',
+        'border-line-width': 'inherited',
+        'border-line-pattern': 'inherited',
+        'shape-class': 'org.xmind.topicShape.underline',
+        'line-class': 'org.xmind.branchConnection.bight',
+        'arrow-end-class': 'inherited',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    floatingTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '14pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': '#EEEBEE',
+        'fill-pattern': 'none',
+        'line-width': '3pt',
+        'line-color': 'inherited',
+        'line-pattern': 'solid',
+        'border-line-color': '#EEEBEE',
+        'border-line-width': 'inherited',
+        'border-line-pattern': 'solid',
+        'shape-class': 'org.xmind.topicShape.roundedRect',
+        'line-class': 'org.xmind.branchConnection.bight',
+        'arrow-end-class': 'org.xmind.arrowShape.none',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    summaryTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '14pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': '#000000',
+        'fill-pattern': 'solid',
+        'line-width': 'inherited',
+        'line-color': 'inherited',
+        'line-pattern': 'inherited',
+        'border-line-color': '#000000',
+        'border-line-width': '0pt',
+        'border-line-pattern': 'inherited',
+        'shape-class': 'org.xmind.topicShape.roundedRect',
+        'line-class': 'org.xmind.branchConnection.bight',
+        'arrow-end-class': 'inherited',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    calloutTopic: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '14pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': '#000000',
+        'fill-pattern': 'solid',
+        'line-width': 'inherited',
+        'line-color': 'inherited',
+        'line-pattern': 'inherited',
+        'border-line-color': '#000000',
+        'border-line-width': 'inherited',
+        'border-line-pattern': 'inherited',
+        'shape-class': 'org.xmind.topicShape.ellipse',
+        'line-class': 'org.xmind.branchConnection.roundedElbow',
+        'arrow-end-class': 'inherited',
+        'alignment-by-level': 'inherited',
+      },
+    },
+    importantTopic: {
+      properties: {
+        'fo:font-weight': 'bold',
+        'svg:fill': '#7F00AC',
+        'fill-pattern': 'solid',
+        'border-line-color': '#7F00AC',
+        'border-line-width': '0',
+      },
+    },
+    minorTopic: {
+      properties: {
+        'fo:font-weight': 'bold',
+        'svg:fill': '#82004A',
+        'fill-pattern': 'solid',
+        'border-line-color': '#82004A',
+        'border-line-width': '0',
+      },
+    },
+    boundary: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '14pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'center',
+        'svg:fill': '#9B9B9B',
+        'fill-pattern': 'solid',
+        'line-width': '2',
+        'line-color': '#00000066',
+        'line-pattern': 'dash',
+        'shape-class': 'org.xmind.boundaryShape.roundedRect',
+      },
+    },
+    zone: {
+      properties: {
+        'fo:font-family': 'NeverMind, sans-serif, Microsoft YaHei, PingFang SC, Microsoft JhengHei, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji',
+        'fo:font-size': '12',
+        'fo:font-weight': '400',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'left',
+        'svg:fill': '#9b9b9b33',
+        'fill-pattern': 'none',
+        'border-line-color': '#00000066',
+        'border-line-width': '2pt',
+        'border-line-pattern': 'solid',
+      },
+    },
+    summary: {
+      properties: {
+        'line-width': '2pt',
+        'line-color': '#000000',
+        'line-pattern': 'solid',
+        'shape-class': 'org.xmind.summaryShape.round',
+      },
+    },
+    relationship: {
+      properties: {
+        'fo:font-family': 'Roboto',
+        'fo:font-size': '13pt',
+        'fo:font-weight': '500',
+        'fo:font-style': 'normal',
+        'fo:color': 'inherited',
+        'fo:text-transform': 'manual',
+        'fo:text-decoration': 'none',
+        'fo:text-align': 'center',
+        'line-width': '2',
+        'line-color': '#00000066',
+        'line-pattern': 'dash',
+        'shape-class': 'org.xmind.relationshipShape.curved',
+        'arrow-begin-class': 'org.xmind.arrowShape.none',
+        'arrow-end-class': 'org.xmind.arrowShape.triangle',
+      },
+    },
+    expiredTopic: {
+      properties: {
+        'fo:text-decoration': 'line-through',
+        'fill-pattern': 'none',
+      },
+    },
+    level3: {
+      properties: {
+        'alignment-by-level': 'inherited',
+      },
+    },
+    skeletonThemeId: '6e8a0060db4a430f98c8d89f66',
     colorThemeId: 'Dawn-#ffffff-MULTI_LINE_COLORS',
   };
 
@@ -168,7 +396,7 @@ const XmindExport = (() => {
     };
 
     if (isRoot) {
-      topic.structureClass = 'org.xmind.ui.map.unbalanced';
+      topic.structureClass = 'org.xmind.ui.map.clockwise';
     }
 
     if (node.children && node.children.length > 0) {
@@ -204,6 +432,14 @@ const XmindExport = (() => {
       title: tree.title || 'Sheet 1',
       arrangeableLayerOrder: [rootTopic.id],
       zones: [],
+      extensions: [{
+        provider: 'org.xmind.ui.skeleton.structure.style',
+        content: {
+          centralTopic: 'org.xmind.ui.map.clockwise',
+          mainTopic: 'org.xmind.ui.logic.right',
+          floatingTopic: 'org.xmind.ui.logic.right',
+        },
+      }],
       theme: buildTheme(),
     }];
   }
@@ -332,12 +568,15 @@ const XmindExport = (() => {
   }
 
   /**
-   * 基于当前预览 SVG 生成低清晰度缩略图，用于 Xmind 预览
+   * 基于当前预览 SVG 生成固定尺寸缩略图 (1024×634)，用于 Xmind 预览
+   * 输出 PNG 格式，如果超过 200KB 则自动转为 JPEG 并逐步降低质量
    * @param {SVGSVGElement|null} svgElement - 当前思维导图 SVG
-   * @returns {Promise<Blob|null>} 缩略图 PNG Blob
+   * @returns {Promise<Blob|null>} 缩略图 Blob
    */
   async function generateThumbnailBlob(svgElement) {
     if (!svgElement) return null;
+
+    const { width, height, maxSizeBytes, padding, backgroundColor } = THUMBNAIL_EXPORT_OPTIONS;
 
     const pngExporter = typeof PngExport !== 'undefined'
       ? PngExport
@@ -347,12 +586,62 @@ const XmindExport = (() => {
       throw new Error('缩略图导出模块未加载，请刷新页面重试');
     }
 
-    const { blob } = await pngExporter.svgToImageBlob(
-      svgElement,
-      THUMBNAIL_EXPORT_OPTIONS,
-    );
+    // 使用 PngExport 的内部方法获取 SVG 字符串和导出区域
+    const { blob } = await pngExporter.svgToImageBlob(svgElement, {
+      scale: 1,
+      minScale: 0.01,
+      maxOutputDimension: width,
+      maxOutputArea: width * height,
+      padding,
+      backgroundColor,
+      mimeType: 'image/png',
+      // 覆盖输出尺寸：强制使用固定的 1024×634
+      fixedOutputWidth: width,
+      fixedOutputHeight: height,
+    });
 
-    return blob;
+    // 如果 PNG 大小在限制内，直接返回
+    if (blob.size <= maxSizeBytes) {
+      return blob;
+    }
+
+    // PNG 超过大小限制，转为 JPEG 并逐步降低质量
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return blob; // fallback
+
+    // 将 PNG blob 绘制到 canvas 上
+    const imgUrl = URL.createObjectURL(blob);
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = imgUrl;
+    });
+    URL.revokeObjectURL(imgUrl);
+
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // 逐步降低 JPEG 质量直到 ≤200KB
+    const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
+    for (const q of qualities) {
+      const jpegBlob = await new Promise(resolve =>
+        canvas.toBlob(resolve, 'image/jpeg', q)
+      );
+      if (jpegBlob && jpegBlob.size <= maxSizeBytes) {
+        return jpegBlob;
+      }
+    }
+
+    // 最低质量兜底
+    const finalBlob = await new Promise(resolve =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.3)
+    );
+    return finalBlob || blob;
   }
 
   /**
