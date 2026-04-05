@@ -38,7 +38,7 @@ const MARKMAP_DEFAULT_OPTIONS = {
 };
 
 const MARKMAP_STREAMING_OPTIONS = {
-  duration: 0,
+  duration: 400,
 };
 
 /** 根据节点 depth 返回对应颜色 */

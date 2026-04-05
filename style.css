@@ -944,10 +944,7 @@ body {
 }
 
 
-/* markmap 内部节点动画优化 */
-#markmapSvg g {
-  will-change: transform, opacity;
-}
+/* markmap 内部节点动画优化 - 已移除了会导致 WebKit 裁切的 will-change */
 
 /* 新节点 foreignObject 淡入用 CSS transition 辅助 */
 #markmapSvg foreignObject {
