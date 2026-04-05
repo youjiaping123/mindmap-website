@@ -24,12 +24,14 @@ const MARKMAP_DEFAULT_OPTIONS = {
   pan: true,
   color: _getNodeColor,
   style: (id) => `
-    #${id} .markmap-foreign div {
-      max-width: var(--markmap-max-width);
+    #${id} .markmap-foreign > div {
       white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
       line-height: 1.3;
+    }
+    #${id} .markmap-foreign > div > div {
+      overflow-wrap: break-word;
+      word-break: break-word;
+      padding-right: 4px;
     }
   `,
 };

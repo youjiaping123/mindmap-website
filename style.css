@@ -943,10 +943,6 @@ body {
   font-weight: 400 !important;
 }
 
-/* 给节点文本额外右侧空间，防止流式渲染时最后一个字符被裁切 */
-#markmapSvg .markmap-foreign > div {
-  padding-right: 2px;
-}
 
 /* markmap 内部节点动画优化 */
 #markmapSvg g {
