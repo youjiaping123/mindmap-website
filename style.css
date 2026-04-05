@@ -952,10 +952,12 @@ body {
   overflow: visible;
 }
 
-/* 防止 foreignObject 内部 div 裁切多行文本 */
+/* 防止 foreignObject 内部 div 裁切多行文本，并破解 Safari 测量死锁 */
 #markmapSvg foreignObject > div,
 #markmapSvg foreignObject > div > div {
   overflow: visible !important;
+  /* 强制 iOS Safari 在计算 scrollWidth 时允许内容撑开视口，避免过早自动换行导致测量出过窄的宽度并永久锁定 */
+  min-width: min(max-content, var(--markmap-max-width, 240px));
 }
 
 /* markmap 连线用 geometricPrecision 让曲线更平滑 */
