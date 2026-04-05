@@ -26,18 +26,19 @@ const MARKMAP_DEFAULT_OPTIONS = {
   style: (id) => `
     #${id} .markmap-foreign > div {
       white-space: normal;
-      line-height: 1.3;
+      line-height: 1.4;
     }
     #${id} .markmap-foreign > div > div {
       overflow-wrap: break-word;
       word-break: break-word;
-      padding-right: 4px;
+      padding-right: 12px;
+      padding-bottom: 4px;
     }
   `,
 };
 
 const MARKMAP_STREAMING_OPTIONS = {
-  duration: 400,
+  duration: 0,
 };
 
 /** 根据节点 depth 返回对应颜色 */

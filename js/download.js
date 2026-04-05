@@ -66,9 +66,9 @@ async function downloadBlob(blob, fileName) {
   const isMobile = isAppleMobileLike();
   const blobType = blob?.type || '';
 
-  // iOS Safari: 对 PDF 和其他非图片、非文本的二进制文件（如 .xmind）
-  // 优先使用 Share API，给用户 "存储到文件" 的入口
-  const preferShareOrPreview = isMobile && /^application\//i.test(blobType);
+  // iOS Safari: 仅对 PDF 优先使用 Share API，给用户 "存储到文件" 的入口
+  // 其他二进制文件（如 .xmind）使用普通的下载机制
+  const preferShareOrPreview = isMobile && /^application\/pdf\b/i.test(blobType);
 
   if (preferShareOrPreview) {
     const shareResult = await tryShareBlob(blob, fileName);
