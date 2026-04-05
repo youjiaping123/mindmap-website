@@ -441,11 +441,10 @@ async function downloadXmind() {
   await exportWithDirectDownload({
     buttonSelector: '.xmind-btn',
     task: async () => {
-      await ensureExportReady();
+      const svgEl = await ensureExportReady();
       const blob = await withTimeout(
         XmindExport.markdownToXmindBlob(AppState.currentMarkdown, {
-          // 手机端优先保证导出完成，跳过缩略图生成
-          svgElement: null,
+          svgElement: svgEl,
         }),
         15000,
         '生成 XMind',

@@ -29,7 +29,7 @@ const MARKMAP_DEFAULT_OPTIONS = {
       white-space: normal;
       overflow-wrap: anywhere;
       word-break: break-word;
-      line-height: 1.45;
+      line-height: 1.3;
     }
   `,
 };

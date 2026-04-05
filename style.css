@@ -951,6 +951,13 @@ body {
 /* 新节点 foreignObject 淡入用 CSS transition 辅助 */
 #markmapSvg foreignObject {
   transition: opacity 0.15s ease-out;
+  overflow: visible;
+}
+
+/* 防止 foreignObject 内部 div 裁切多行文本 */
+#markmapSvg foreignObject > div,
+#markmapSvg foreignObject > div > div {
+  overflow: visible !important;
 }
 
 /* markmap 连线用 geometricPrecision 让曲线更平滑 */
