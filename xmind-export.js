@@ -275,8 +275,11 @@ const XmindExport = (() => {
     const theme = JSON.parse(JSON.stringify(DEFAULT_THEME));
     for (const key of Object.keys(theme)) {
       const val = theme[key];
-      if (val && typeof val === 'object' && !Array.isArray(val) && val.properties) {
-        val.id = generateUUID();
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        // map 和带 properties 的节都需要 UUID
+        if (val.properties || key === 'map') {
+          val.id = generateUUID();
+        }
       }
     }
     return theme;
@@ -384,16 +387,21 @@ const XmindExport = (() => {
    * 将树形结构转换为 Xmind content.json 的 topic 格式
    *
    * 新版格式特征（参考 Yogurt 26.x 真实 .xmind 文件）：
-   *   - 每个 topic 带 id, class: "topic", title
-   *   - root topic 额外带 structureClass: "org.xmind.ui.map.unbalanced"
+   *   - 仅 root topic 带 id, class: "topic", title, structureClass
+   *   - 子 topic 仅带 id, title（不含 class）
    *   - children 使用 { attached: [...] } 结构
    */
   function treeToXmindTopic(node, isRoot) {
     const topic = {
       id: generateId(),
-      class: 'topic',
-      title: node.title || '',
     };
+
+    // 仅根节点带 class 和 structureClass（匹配 Xmind 官方导出格式）
+    if (isRoot) {
+      topic.class = 'topic';
+    }
+
+    topic.title = node.title || '';
 
     if (isRoot) {
       topic.structureClass = 'org.xmind.ui.map.clockwise';
