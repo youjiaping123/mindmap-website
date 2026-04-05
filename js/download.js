@@ -28,10 +28,6 @@ function isAppleMobileLike() {
     || (/Mac/i.test(platform) && maxTouchPoints > 1);
 }
 
-function shouldPreferPreviewFallback(blob) {
-  if (!isAppleMobileLike()) return false;
-  return /^application\/pdf\b/i.test(blob?.type || '');
-}
 
 async function tryShareBlob(blob, fileName) {
   if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
@@ -67,8 +63,14 @@ async function tryShareBlob(blob, fileName) {
 }
 
 async function downloadBlob(blob, fileName) {
-  const preferPreviewFallback = shouldPreferPreviewFallback(blob);
-  if (preferPreviewFallback) {
+  const isMobile = isAppleMobileLike();
+  const blobType = blob?.type || '';
+
+  // iOS Safari: 对 PDF 和其他非图片、非文本的二进制文件（如 .xmind）
+  // 优先使用 Share API，给用户 "存储到文件" 的入口
+  const preferShareOrPreview = isMobile && /^application\//i.test(blobType);
+
+  if (preferShareOrPreview) {
     const shareResult = await tryShareBlob(blob, fileName);
     if (shareResult.shared || shareResult.cancelled) {
       return {
@@ -84,7 +86,9 @@ async function downloadBlob(blob, fileName) {
 
   link.href = url;
   link.rel = 'noopener';
-  if (preferPreviewFallback) {
+  // 仅 PDF 使用预览模式（target=_blank），其他二进制文件用 download 属性
+  const isPdfPreview = isMobile && /^application\/pdf\b/i.test(blobType);
+  if (isPdfPreview) {
     link.target = '_blank';
   } else {
     link.download = fileName;
@@ -101,7 +105,7 @@ async function downloadBlob(blob, fileName) {
   return {
     delivered: true,
     cancelled: false,
-    method: preferPreviewFallback ? 'preview' : 'download',
+    method: isPdfPreview ? 'preview' : 'download',
   };
 }
 
@@ -341,6 +345,11 @@ async function exportWithDirectDownload({ buttonSelector, task, successMessage, 
 
     if (delivery?.method === 'preview') {
       showToast('已打开预览页，请使用系统菜单“存储到文件”或“下载”保存 PDF', 'info', 5000);
+      return;
+    }
+
+    if (delivery?.method === 'share') {
+      showToast(successMessage || '文件已通过系统分享保存', 'success');
       return;
     }
 

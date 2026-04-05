@@ -17,8 +17,8 @@ const MARKMAP_COLOR_PALETTE = [
 const MARKMAP_DEFAULT_OPTIONS = {
   autoFit: true,
   duration: 300,
-  maxWidth: 220,
-  paddingX: 16,
+  maxWidth: 240,
+  paddingX: 20,
   initialExpandLevel: -1,
   zoom: true,
   pan: true,

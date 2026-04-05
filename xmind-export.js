@@ -731,7 +731,15 @@ const XmindExport = (() => {
     const tree = parseMarkdownToTree(markdown);
     const contentJson = generateContentJson(tree);
     const metadataJson = generateMetadataJson();
-    const thumbnailBlob = await generateThumbnailBlob(options.svgElement || null);
+
+    // 缩略图生成可能在 iOS Safari 上因 foreignObject 触发 "The operation is insecure" 安全限制
+    // 捕获异常后仍然正常导出 .xmind，只是不包含缩略图
+    let thumbnailBlob = null;
+    try {
+      thumbnailBlob = await generateThumbnailBlob(options.svgElement || null);
+    } catch (e) {
+      console.warn('缩略图生成失败（可能是移动端安全限制），已跳过:', e.message);
+    }
     const manifestJson = generateManifestJson(Boolean(thumbnailBlob));
 
     const zip = new JSZip();
