@@ -85,6 +85,42 @@ function _patchTransition(mm) {
   };
 }
 
+function _patchInitializeData(mm) {
+  const origInit = mm._initializeData;
+  mm._initializeData = function(newNode) {
+    const oldStateMap = new Map();
+
+    const walkAndCollect = (node, path) => {
+      if (node && node.state) {
+        oldStateMap.set(path, node.state);
+      }
+      if (node && node.children) {
+        node.children.forEach((child, i) => walkAndCollect(child, `${path}.${i}`));
+      }
+    };
+
+    if (this.state && this.state.data) {
+      walkAndCollect(this.state.data, '0');
+    }
+
+    const resultNode = origInit.call(this, newNode);
+
+    const walkAndRestore = (node, path) => {
+      const oldState = oldStateMap.get(path);
+      if (oldState && node && node.state) {
+        if (oldState.size) node.state.size = [...oldState.size];
+        if (oldState.rect) node.state.rect = { ...oldState.rect };
+      }
+      if (node && node.children) {
+        node.children.forEach((child, i) => walkAndRestore(child, `${path}.${i}`));
+      }
+    };
+
+    walkAndRestore(resultNode, '0');
+    return resultNode;
+  };
+}
+
 function requestMarkmapFit(delay = 0) {
   if (_streamFitTimer) {
     clearTimeout(_streamFitTimer);
@@ -133,6 +169,7 @@ function renderMarkmap(markdown) {
 
   AppState.markmapInstance = Markmap.create(svgEl, MARKMAP_DEFAULT_OPTIONS, root);
   _patchTransition(AppState.markmapInstance);
+  _patchInitializeData(AppState.markmapInstance);
 
   // 设置右键菜单
   _setupContextMenu(AppState.markmapInstance);
