@@ -31,8 +31,14 @@ const MARKMAP_DEFAULT_OPTIONS = {
     #${id} .markmap-foreign > div > div {
       overflow-wrap: break-word;
       word-break: break-word;
-      padding-right: 12px;
       padding-bottom: 4px;
+    }
+    /* iOS Safari 常常忽略 inline-block 的 padding-right 导致的 scrollWidth 计算偏差。通过伪元素强制撑开右侧 4px 缓冲区，防止最后一个字符因亚像素渲染被裁切。 */
+    #${id} .markmap-foreign > div > div::after {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 1px;
     }
   `,
 };
