@@ -568,8 +568,14 @@ const XmindExport = (() => {
   }
 
   /**
-   * 基于当前预览 SVG 生成固定尺寸缩略图 (1024×634)，用于 Xmind 预览
-   * 输出 PNG 格式，如果超过 200KB 则自动转为 JPEG 并逐步降低质量
+   * 基于当前预览 SVG 生成固定尺寸缩略图 (1024×634)，用于 Xmind 压缩包内的
+   * Thumbnails/thumbnail.png。
+   *
+   * 完全独立于 PngExport 模块，不会影响思维导图 PNG 的正常导出。
+   *
+   * 流程：克隆 SVG → 内联样式 → 渲染到 1024×634 Canvas → 输出 PNG
+   * 若 PNG 超过 200KB 则自动降级为 JPEG 并逐步降低质量。
+   *
    * @param {SVGSVGElement|null} svgElement - 当前思维导图 SVG
    * @returns {Promise<Blob|null>} 缩略图 Blob
    */
@@ -578,55 +584,125 @@ const XmindExport = (() => {
 
     const { width, height, maxSizeBytes, padding, backgroundColor } = THUMBNAIL_EXPORT_OPTIONS;
 
-    const pngExporter = typeof PngExport !== 'undefined'
-      ? PngExport
-      : window.PngExport;
+    // ── 1. 计算 SVG 内容边界 ──
+    const bbox = svgElement.getBBox();
+    if (!bbox || bbox.width <= 0 || bbox.height <= 0) return null;
 
-    if (typeof pngExporter?.svgToImageBlob !== 'function') {
-      throw new Error('缩略图导出模块未加载，请刷新页面重试');
+    // 合并 foreignObject 文本层的边界
+    const screenCTM = svgElement.getScreenCTM();
+    let contentBounds = { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height };
+
+    if (screenCTM) {
+      const inverse = screenCTM.inverse();
+      svgElement.querySelectorAll('foreignObject').forEach(fo => {
+        const labelEl = fo.querySelector('div div') || fo.querySelector('div');
+        if (!labelEl) return;
+        const rect = labelEl.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const corners = [
+          new DOMPoint(rect.left, rect.top),
+          new DOMPoint(rect.right, rect.bottom),
+        ].map(p => p.matrixTransform(inverse));
+        const lx = Math.min(corners[0].x, corners[1].x);
+        const ly = Math.min(corners[0].y, corners[1].y);
+        const lw = Math.abs(corners[1].x - corners[0].x);
+        const lh = Math.abs(corners[1].y - corners[0].y);
+        contentBounds = {
+          x: Math.min(contentBounds.x, lx),
+          y: Math.min(contentBounds.y, ly),
+          width: Math.max(contentBounds.x + contentBounds.width, lx + lw) - Math.min(contentBounds.x, lx),
+          height: Math.max(contentBounds.y + contentBounds.height, ly + lh) - Math.min(contentBounds.y, ly),
+        };
+      });
     }
 
-    // 使用 PngExport 的内部方法获取 SVG 字符串和导出区域
-    const { blob } = await pngExporter.svgToImageBlob(svgElement, {
-      scale: 1,
-      minScale: 0.01,
-      maxOutputDimension: width,
-      maxOutputArea: width * height,
-      padding,
-      backgroundColor,
-      mimeType: 'image/png',
-      // 覆盖输出尺寸：强制使用固定的 1024×634
-      fixedOutputWidth: width,
-      fixedOutputHeight: height,
+    const exportBox = {
+      x: contentBounds.x - padding,
+      y: contentBounds.y - padding,
+      width: contentBounds.width + padding * 2,
+      height: contentBounds.height + padding * 2,
+    };
+
+    // ── 2. 克隆 SVG 并内联关键样式 ──
+    const clonedSvg = svgElement.cloneNode(true);
+
+    function inlineStyles(original, clone) {
+      const origChildren = original.children;
+      const cloneChildren = clone.children;
+      for (let i = 0; i < origChildren.length && i < cloneChildren.length; i++) {
+        if (!(origChildren[i] instanceof Element)) continue;
+        const cs = window.getComputedStyle(origChildren[i]);
+        const props = [
+          'fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-opacity',
+          'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
+          'opacity', 'visibility', 'display',
+          'font-family', 'font-size', 'font-weight', 'font-style',
+          'text-anchor', 'dominant-baseline', 'text-decoration',
+          'letter-spacing', 'word-spacing', 'color',
+        ];
+        for (const p of props) {
+          const v = cs.getPropertyValue(p);
+          if (v && v !== '' && v !== 'normal') {
+            cloneChildren[i].style.setProperty(p, v);
+          }
+        }
+        inlineStyles(origChildren[i], cloneChildren[i]);
+      }
+    }
+    inlineStyles(svgElement, clonedSvg);
+
+    clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    clonedSvg.setAttribute('viewBox', `${exportBox.x} ${exportBox.y} ${exportBox.width} ${exportBox.height}`);
+    clonedSvg.setAttribute('width', String(width));
+    clonedSvg.setAttribute('height', String(height));
+    clonedSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    // 插入白色背景矩形
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('x', String(exportBox.x));
+    bgRect.setAttribute('y', String(exportBox.y));
+    bgRect.setAttribute('width', String(exportBox.width));
+    bgRect.setAttribute('height', String(exportBox.height));
+    bgRect.setAttribute('fill', backgroundColor);
+    clonedSvg.insertBefore(bgRect, clonedSvg.firstChild);
+
+    const svgString = new XMLSerializer().serializeToString(clonedSvg);
+
+    // ── 3. 渲染到固定 1024×634 Canvas ──
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('缩略图 SVG 渲染失败'));
+      image.src = svgUrl;
     });
+    URL.revokeObjectURL(svgUrl);
 
-    // 如果 PNG 大小在限制内，直接返回
-    if (blob.size <= maxSizeBytes) {
-      return blob;
-    }
-
-    // PNG 超过大小限制，转为 JPEG 并逐步降低质量
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return blob; // fallback
+    if (!ctx) return null;
 
-    // 将 PNG blob 绘制到 canvas 上
-    const imgUrl = URL.createObjectURL(blob);
-    const img = await new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = reject;
-      image.src = imgUrl;
-    });
-    URL.revokeObjectURL(imgUrl);
-
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
 
-    // 逐步降低 JPEG 质量直到 ≤200KB
+    // ── 4. 输出 PNG，若超过 200KB 则降级为 JPEG ──
+    const pngBlob = await new Promise(resolve =>
+      canvas.toBlob(resolve, 'image/png')
+    );
+
+    if (pngBlob && pngBlob.size <= maxSizeBytes) {
+      return pngBlob;
+    }
+
+    // PNG 超限，逐步降低 JPEG 质量
     const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
     for (const q of qualities) {
       const jpegBlob = await new Promise(resolve =>
@@ -641,7 +717,7 @@ const XmindExport = (() => {
     const finalBlob = await new Promise(resolve =>
       canvas.toBlob(resolve, 'image/jpeg', 0.3)
     );
-    return finalBlob || blob;
+    return finalBlob || pngBlob;
   }
 
   /**

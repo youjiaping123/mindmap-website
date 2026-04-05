@@ -371,13 +371,8 @@ const PngExport = (() => {
     const exportBox = getExportBox(svgElement, padding);
     const requestedScale = resolveRequestedScale(exportBox, options);
     const { actualScale, limited } = getSafeScale(exportBox.width, exportBox.height, requestedScale, options);
-    // 支持固定输出尺寸（用于缩略图等场景）
-    const outputWidth = Number.isFinite(options.fixedOutputWidth) && options.fixedOutputWidth > 0
-      ? options.fixedOutputWidth
-      : Math.max(1, Math.round(exportBox.width * actualScale));
-    const outputHeight = Number.isFinite(options.fixedOutputHeight) && options.fixedOutputHeight > 0
-      ? options.fixedOutputHeight
-      : Math.max(1, Math.round(exportBox.height * actualScale));
+    const outputWidth = Math.max(1, Math.round(exportBox.width * actualScale));
+    const outputHeight = Math.max(1, Math.round(exportBox.height * actualScale));
 
     const { svgString } = createStandaloneSvgString(svgElement, {
       padding,
