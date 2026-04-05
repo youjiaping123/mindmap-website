@@ -92,7 +92,10 @@ function _patchInitializeData(mm) {
 
     const walkAndCollect = (node, path) => {
       if (node && node.state) {
-        oldStateMap.set(path, node.state);
+        oldStateMap.set(path, {
+          state: node.state,
+          content: node.content
+        });
       }
       if (node && node.children) {
         node.children.forEach((child, i) => walkAndCollect(child, `${path}.${i}`));
@@ -106,10 +109,23 @@ function _patchInitializeData(mm) {
     const resultNode = origInit.call(this, newNode);
 
     const walkAndRestore = (node, path) => {
-      const oldState = oldStateMap.get(path);
-      if (oldState && node && node.state) {
-        if (oldState.size) node.state.size = [...oldState.size];
-        if (oldState.rect) node.state.rect = { ...oldState.rect };
+      const oldItem = oldStateMap.get(path);
+      if (oldItem && node && node.state) {
+        const oldState = oldItem.state;
+        const contentChanged = node.content !== oldItem.content;
+        
+        if (oldState.size) {
+          node.state.size = [...oldState.size];
+          if (contentChanged) {
+            node.state.size[0] += 60; // 宽裕的缓冲区，防止增长字符被瞬间裁切
+          }
+        }
+        if (oldState.rect) {
+          node.state.rect = { ...oldState.rect };
+          if (contentChanged) {
+            node.state.rect.width += 60;
+          }
+        }
       }
       if (node && node.children) {
         node.children.forEach((child, i) => walkAndRestore(child, `${path}.${i}`));
