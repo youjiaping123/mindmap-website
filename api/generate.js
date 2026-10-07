@@ -6,6 +6,7 @@ import {
   guardApiRequest,
   resolveModel,
   callChatCompletionsStream,
+  parseAIServiceError,
   pipeSSE,
   errorResponse,
   DEFAULT_SYSTEM_PROMPT,
@@ -75,8 +76,9 @@ export default async function handler(req, res) {
     // 以 SSE 流式转发给前端
     await pipeSSE(upstreamResponse, req, res, upstreamAbortController);
   } catch (error) {
-    if (typeof error?.message === 'string' && error.message.startsWith('AI_SERVICE_ERROR:')) {
-      const [, statusCode, detail = ''] = error.message.split(':', 3);
+    const serviceError = parseAIServiceError(error);
+    if (serviceError) {
+      const { statusCode, detail } = serviceError;
       return errorResponse(res, 502, `AI service error (${statusCode})${detail ? `: ${detail}` : ''}`);
     }
     console.error('Server error:', error);

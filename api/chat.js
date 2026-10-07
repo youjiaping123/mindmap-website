@@ -6,6 +6,7 @@ import {
   guardApiRequest,
   resolveModel,
   callChatCompletionsStream,
+  parseAIServiceError,
   pipeSSE,
   errorResponse,
 } from './_shared.js';
@@ -153,8 +154,9 @@ export default async function handler(req, res) {
     await pipeSSE(upstreamResponse, req, res, upstreamAbortController);
 
   } catch (error) {
-    if (typeof error?.message === 'string' && error.message.startsWith('AI_SERVICE_ERROR:')) {
-      const [, statusCode, detail = ''] = error.message.split(':', 3);
+    const serviceError = parseAIServiceError(error);
+    if (serviceError) {
+      const { statusCode, detail } = serviceError;
       return errorResponse(res, 502, `AI 服务异常（${statusCode}）${detail ? `: ${detail}` : ''}`);
     }
     console.error('Server error:', error);

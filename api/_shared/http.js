@@ -4,6 +4,27 @@ export function errorResponse(res, statusCode, message) {
   return res.status(statusCode).json({ error: message });
 }
 
+/** 已知不接受自定义 temperature 的模型（如 claude-sonnet-5-5），同一实例内后续请求直接省略该参数 */
+const modelsRejectingTemperature = new Set();
+
+function isTemperatureRejection(status, errText) {
+  return status === 400 && /temperature/i.test(errText || '');
+}
+
+function serviceError(status, errText) {
+  console.error('OpenAI API error:', status, errText);
+  const compact = String(errText || '').replace(/\s+/g, ' ').trim();
+  return new Error(`AI_SERVICE_ERROR:${status}:${compact.slice(0, 500)}`);
+}
+
+/** 解析 callChatCompletionsStream 抛出的上游错误，非上游错误返回 null */
+export function parseAIServiceError(error) {
+  const match = typeof error?.message === 'string'
+    ? error.message.match(/^AI_SERVICE_ERROR:(\d+):([\s\S]*)$/)
+    : null;
+  return match ? { statusCode: match[1], detail: match[2] } : null;
+}
+
 export async function callChatCompletionsStream({
   baseUrl,
   apiKey,
@@ -15,16 +36,19 @@ export async function callChatCompletionsStream({
 }) {
   const payload = {
     model,
-    temperature,
     messages,
     stream: true,
   };
+
+  if (!modelsRejectingTemperature.has(model)) {
+    payload.temperature = temperature;
+  }
 
   if (Number.isFinite(maxTokens) && maxTokens > 0) {
     payload.max_tokens = maxTokens;
   }
 
-  const response = await fetch(buildOpenAIUrl(baseUrl, 'chat/completions'), {
+  const send = () => fetch(buildOpenAIUrl(baseUrl, 'chat/completions'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -34,11 +58,22 @@ export async function callChatCompletionsStream({
     signal,
   });
 
-  if (!response.ok) {
+  let response = await send();
+
+  // 部分模型不支持自定义 temperature，去掉该参数重试一次
+  if (!response.ok && 'temperature' in payload) {
     const errText = await response.text();
-    console.error('OpenAI API error:', response.status, errText);
-    const compact = String(errText || '').replace(/\s+/g, ' ').trim();
-    throw new Error(`AI_SERVICE_ERROR:${response.status}:${compact.slice(0, 500)}`);
+    if (!isTemperatureRejection(response.status, errText)) {
+      throw serviceError(response.status, errText);
+    }
+    console.warn(`Model ${model} rejected temperature, retrying without it`);
+    modelsRejectingTemperature.add(model);
+    delete payload.temperature;
+    response = await send();
+  }
+
+  if (!response.ok) {
+    throw serviceError(response.status, await response.text());
   }
 
   return response;
