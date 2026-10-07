@@ -2151,3 +2151,68 @@ body.fake-fullscreen-active {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--primary-glow);
 }
+
+.node-edit-cancel:disabled, .node-edit-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 登录弹窗 */
+.auth-btn .btn-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-dialog .node-edit-input {
+  resize: none;
+  margin-top: 4px;
+}
+
+.auth-code-input {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 8px;
+  text-align: center;
+}
+
+.auth-code-input::placeholder {
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: normal;
+}
+
+.auth-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.auth-account-email {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.auth-error {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.auth-link-btn {
+  margin-right: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.auth-link-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}

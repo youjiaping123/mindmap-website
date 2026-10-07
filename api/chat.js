@@ -10,6 +10,7 @@ import {
   pipeSSE,
   errorResponse,
 } from './_shared.js';
+import { authorizeUserRequest } from './_shared/auth.js';
 
 const CHAT_SYSTEM_PROMPT = `你是一位智能思维导图助手，既能帮用户修改思维导图，也能正常聊天回答问题。
 
@@ -137,6 +138,12 @@ export default async function handler(req, res) {
       role: 'user',
       content: `当前思维导图 Markdown：\n\n${currentMarkdown.trim()}\n\n---\n\n用户消息：${message.trim()}`,
     });
+
+    const auth = await authorizeUserRequest(req, res, {
+      routeKey: 'chat',
+      isTrustedRequest: guard.context.isTrustedRequest,
+    });
+    if (!auth.ok) return auth.response;
 
     // 流式调用
     const upstreamAbortController = new AbortController();

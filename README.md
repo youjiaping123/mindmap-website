@@ -162,10 +162,14 @@
 mindmap-website/
 ├── api/
 │   ├── _shared.js        # AI 调用公共逻辑、默认配置、SSE 转发
+│   ├── _shared/auth.js   # 邮箱验证码登录、会话与每用户额度
+│   ├── _shared/redis.js  # Upstash Redis REST 客户端
+│   ├── auth/             # 登录接口：send-code / verify / me / logout
 │   ├── chat.js           # 对话式局部修改接口
 │   ├── generate.js       # 思维导图生成接口
 │   └── models.js         # 模型列表接口
 ├── js/
+│   ├── auth.js           # 登录弹窗、登录状态与额度显示
 │   ├── chat.js           # 对话 UI 与 SSE 消费
 │   ├── constants.js      # 全局常量与默认提示词
 │   ├── download.js       # Xmind / JPEG / PDF / SVG 下载
@@ -268,12 +272,19 @@ vercel --prod
 | `OPENAI_MAX_TOKENS` | 否 | 统一设置生成与对话的输出上限 |
 | `OPENAI_GENERATE_MAX_TOKENS` | 否 | 单独设置 `/api/generate` 的输出上限 |
 | `OPENAI_CHAT_MAX_TOKENS` | 否 | 单独设置 `/api/chat` 的输出上限 |
+| `AUTH_ENABLED` | 否 | 设为 `true` 后开启邮箱验证码登录，`/api/generate` 与 `/api/chat` 必须登录才能调用 |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 开启登录时必填 | Upstash Redis 连接信息（在 Vercel 的 Storage 中创建 Upstash Redis 后自动注入；也支持 `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`） |
+| `RESEND_API_KEY` | 开启登录时必填 | [Resend](https://resend.com) 的 API Key，用于发送登录验证码 |
+| `MAIL_FROM` | 开启登录时必填 | 发件人，例如 `ZevenAI <noreply@zeven27.com>`，域名需在 Resend 中验证 |
+| `USER_DAILY_QUOTA` | 否 | 每个用户每天可调用生成与对话的总次数（多版本生成每个版本计一次），默认 `50`，北京时间零点重置 |
+| `USER_RATE_LIMIT_PER_MINUTE` | 否 | 每个用户每分钟对单个接口的调用上限，默认 `10` |
 | `API_AUTH_TOKEN` | 否 | 设置后可通过请求头 `X-App-Token` 识别可信调用方 |
 | `ALLOWED_ORIGINS` | 否 | 允许访问 API 的来源域名（逗号分隔） |
 | `API_RATE_LIMIT_WINDOW_MS` | 否 | 限流窗口时长（毫秒），默认 `60000` |
 | `API_RATE_LIMIT_GENERATE_PER_WINDOW` | 否 | `/api/generate` 每窗口请求上限，默认 `20` |
 | `API_RATE_LIMIT_CHAT_PER_WINDOW` | 否 | `/api/chat` 每窗口请求上限，默认 `20` |
 | `API_RATE_LIMIT_MODELS_PER_WINDOW` | 否 | `/api/models` 每窗口请求上限，默认 `60` |
+| `API_RATE_LIMIT_AUTH_PER_WINDOW` | 否 | `/api/auth/*` 每窗口请求上限，默认 `60` |
 | `API_DAILY_QUOTA` | 否 | 每个调用标识的每日请求上限，默认 `800` |
 | `API_MAX_CUSTOM_PROMPT_LENGTH` | 否 | 普通请求下 `customPrompt` 长度上限，默认 `30000` |
 | `API_MAX_CURRENT_MARKDOWN_LENGTH` | 否 | 普通请求下 `currentMarkdown` 长度上限，默认 `20000` |
@@ -324,6 +335,17 @@ OPENAI_MODELS=gpt-4o,gpt-4o-mini,deepseek-chat
 - 每日配额（内存计数，serverless 多实例下是 best-effort）
 
 来源校验依赖 `Origin` / `Referer` 请求头，只能拦住其他网站的浏览器请求，脚本可以伪造这些请求头。公开部署时建议设置 `OPENAI_MODELS`：设置后 `/api/generate` 和 `/api/chat` 只接受列表内的模型（以及 `OPENAI_MODEL` 默认模型），其他模型直接返回 400，避免他人借你的 Key 调用更贵的模型。未设置时不限制模型名。
+
+### 关于登录
+
+设置 `AUTH_ENABLED=true` 并配置 Redis 与 Resend 后开启邮箱验证码登录：
+
+- 用户输入邮箱获取 6 位验证码（10 分钟有效，最多尝试 5 次），首次登录自动注册
+- 会话保存在 HttpOnly Cookie 中，有效期 30 天，服务端存储在 Redis，可随时失效
+- 生成与对话按用户计数（`USER_DAILY_QUOTA`、`USER_RATE_LIMIT_PER_MINUTE`），计数存储在 Redis，多实例下同样生效
+- 发送验证码有频率限制：同一邮箱 60 秒一次、每天 10 次，同一 IP 每小时 20 次
+- 停用账号：在 Upstash 控制台执行 `SET user:blocked:<邮箱> 1`，删除该 key 即恢复
+- 携带有效 `X-App-Token` 的可信调用方不需要登录
 
 可选地，你可以给可信客户端分配 `X-App-Token`，并通过 `API_TRUSTED_MAX_*` 放宽长内容上限。
 

@@ -92,10 +92,9 @@ async function _collectFullResponse(topic, selectedModel, customPrompt, temperat
   });
 
   if (!response.ok) {
-    let errMsg = '生成失败';
-    try { const d = await response.json(); errMsg = d.error || errMsg; } catch {}
-    throw new Error(errMsg);
+    throw new Error(await readApiError(response, '生成失败'));
   }
+  updateQuotaFromResponse(response);
 
   const result = await consumeSSE(response.body);
 
@@ -134,6 +133,8 @@ async function handleGenerate() {
     setLoading(false);
     return;
   }
+
+  if (!ensureLoggedIn(handleGenerate)) return;
 
   setLoading(true);
   hideError();
@@ -231,10 +232,9 @@ async function handleGenerate() {
     });
 
     if (!response.ok) {
-      let errMsg = '生成失败，请重试';
-      try { const errData = await response.json(); errMsg = errData.error || errMsg; } catch {}
-      throw new Error(errMsg);
+      throw new Error(await readApiError(response, '生成失败，请重试', handleGenerate));
     }
+    updateQuotaFromResponse(response);
 
     // ===== 启动额外版本的后台生成 =====
     const extraPromises = [];

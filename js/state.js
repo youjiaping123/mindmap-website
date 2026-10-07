@@ -22,6 +22,9 @@ const AppState = {
   activeVersionIndex: -1,  // 当前激活的版本索引
   /** 当前导图对应的历史记录 id，修改后据此回写 */
   currentHistoryId: null,
+  /** 登录状态：authEnabled 由服务端决定，user 为 { email, usedToday, dailyQuota } */
+  authEnabled: false,
+  user: null,
 };
 
 /** 修改导图前保存撤销快照，并清空重做栈 */

@@ -68,6 +68,7 @@ async function handleChat() {
     return;
   }
   if (AppState.chatLoading) return;
+  if (!ensureLoggedIn(handleChat)) return;
 
   appendChatMessage('user', message);
   input.value = '';
@@ -97,13 +98,9 @@ async function handleChat() {
     });
 
     if (!response.ok) {
-      let errMsg = '修改失败，请重试';
-      try {
-        const errData = await response.json();
-        errMsg = errData.error || errMsg;
-      } catch {}
-      throw new Error(errMsg);
+      throw new Error(await readApiError(response, '修改失败，请重试'));
     }
+    updateQuotaFromResponse(response);
 
     if (bubbleEl) bubbleEl.classList.remove('chat-msg-thinking');
 

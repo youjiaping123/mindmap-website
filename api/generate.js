@@ -11,6 +11,7 @@ import {
   errorResponse,
   DEFAULT_SYSTEM_PROMPT,
 } from './_shared.js';
+import { authorizeUserRequest } from './_shared/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -58,6 +59,12 @@ export default async function handler(req, res) {
     const userMessage = useCustom
       ? topic.trim()
       : `请为以下主题生成思维导图大纲：${topic.trim()}`;
+
+    const auth = await authorizeUserRequest(req, res, {
+      routeKey: 'generate',
+      isTrustedRequest: guard.context.isTrustedRequest,
+    });
+    if (!auth.ok) return auth.response;
 
     const upstreamAbortController = new AbortController();
     const upstreamResponse = await callChatCompletionsStream({

@@ -81,7 +81,7 @@ function parseOriginFromRequest(req) {
   return '';
 }
 
-function getRequestIp(req) {
+export function getRequestIp(req) {
   const forwardedFor = getHeader(req, 'x-forwarded-for');
   if (forwardedFor) {
     const first = forwardedFor.split(',')[0].trim();
@@ -94,7 +94,7 @@ function getRequestIp(req) {
 }
 
 function getRouteKeyLabel(routeKey) {
-  if (routeKey === 'generate' || routeKey === 'chat' || routeKey === 'models') {
+  if (routeKey === 'generate' || routeKey === 'chat' || routeKey === 'models' || routeKey === 'auth') {
     return routeKey;
   }
   return 'default';
@@ -114,6 +114,9 @@ function readRouteRateLimit(routeKey) {
   }
   if (normalized === 'models') {
     return readPositiveIntEnv('API_RATE_LIMIT_MODELS_PER_WINDOW') ?? 60;
+  }
+  if (normalized === 'auth') {
+    return readPositiveIntEnv('API_RATE_LIMIT_AUTH_PER_WINDOW') ?? 60;
   }
   return readPositiveIntEnv('API_RATE_LIMIT_DEFAULT_PER_WINDOW') ?? 20;
 }

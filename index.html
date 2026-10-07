@@ -39,6 +39,10 @@
         </div>
       </div>
       <div class="topbar-right">
+        <button class="icon-btn auth-btn" id="authBtn" onclick="onAuthButtonClick()" title="登录" aria-label="登录或查看账号" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="btn-label" id="authBtnLabel">登录</span>
+        </button>
         <button class="icon-btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换主题" aria-label="切换深色/浅色主题">
           <span class="theme-icon" id="themeIcon">☀️</span>
         </button>
@@ -241,6 +245,34 @@
       </div>
     </div>
 
+    <!-- 登录弹窗 -->
+    <div id="authModal" class="node-edit-modal" style="display:none;">
+      <div class="node-edit-backdrop" onclick="closeAuthModal()"></div>
+      <div class="node-edit-dialog auth-dialog">
+        <div id="authLoginView">
+          <h3>🔐 登录 ZevenAI</h3>
+          <p class="auth-hint" id="authHint">输入邮箱，我们会发送一个 6 位验证码，首次登录自动注册</p>
+          <input id="authEmailInput" class="node-edit-input" type="email" placeholder="you@example.com" autocomplete="email" maxlength="254">
+          <input id="authCodeInput" class="node-edit-input auth-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" style="display:none;">
+          <div class="auth-error" id="authError" style="display:none;"></div>
+          <div class="node-edit-actions">
+            <button class="auth-link-btn" id="authResendBtn" onclick="resendLoginCode()" style="display:none;">重新发送</button>
+            <button class="node-edit-cancel" id="authSecondaryBtn" onclick="handleAuthSecondary()">取消</button>
+            <button class="node-edit-save" id="authPrimaryBtn" onclick="handleAuthPrimary()">发送验证码</button>
+          </div>
+        </div>
+        <div id="authAccountView" style="display:none;">
+          <h3>👤 我的账号</h3>
+          <p class="auth-hint auth-account-email" id="authAccountEmail"></p>
+          <p class="auth-hint" id="authAccountUsage"></p>
+          <div class="node-edit-actions">
+            <button class="node-edit-cancel" onclick="handleLogout()">退出登录</button>
+            <button class="node-edit-save" onclick="closeAuthModal()">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 对话式修改区域 -->
     <section id="chatSection" class="chat-section" style="display:none;" aria-label="对话修改">
       <div class="chat-header">
@@ -311,6 +343,7 @@
   <script src="js/utils.js"></script>
   <script src="js/state.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/markmap.js"></script>
   <script src="js/markdown-engine.js"></script>
   <script src="js/history.js"></script>

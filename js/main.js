@@ -15,6 +15,8 @@ function initAppShell() {
   applyTheme(getSavedTheme());
   initParticles();
   loadModels();
+  refreshAuthState();
+  bindAuthInputs();
   renderHistoryList();
   initPromptListeners();
 }
@@ -102,6 +104,13 @@ function bindNodeEditModal() {
 function bindGlobalShortcuts() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+
+    const authModal = $('authModal');
+    if (authModal && authModal.style.display === 'flex') {
+      e.preventDefault();
+      closeAuthModal();
+      return;
+    }
 
     const modal = $('nodeEditModal');
     if (modal && modal.style.display === 'flex') {
