@@ -173,6 +173,7 @@ async function handleGenerate() {
   let lastRenderTime = 0;
   let rafId = null;
   let hasRenderedStreamPreview = false;
+  let lastRenderedMd = '';
   const RENDER_INTERVAL = 400;
 
   function hasVisibleMarkmapContent(markdown) {
@@ -191,8 +192,12 @@ async function handleGenerate() {
   function doRender() {
     renderTimer = null;
     lastRenderTime = Date.now();
-    const md = AppState.currentMarkdown.trim();
-    if (md && hasVisibleMarkmapContent(md)) {
+    // 只渲染已完整输出的行：markmap 以节点文本的哈希作为 key，
+    // 半行内容每次增长都会被当成新节点，旧节点淡出、新节点飞入，形成重影和跳动
+    const accumulated = AppState.currentMarkdown;
+    const md = accumulated.slice(0, accumulated.lastIndexOf('\n') + 1).trim();
+    if (md && md !== lastRenderedMd && hasVisibleMarkmapContent(md)) {
+      lastRenderedMd = md;
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         rafId = null;
@@ -202,7 +207,7 @@ async function handleGenerate() {
         } else {
           updateMarkmap(md, false);
         }
-        $('markdownContent').textContent = md;
+        $('markdownContent').textContent = AppState.currentMarkdown;
       });
     }
   }

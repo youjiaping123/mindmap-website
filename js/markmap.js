@@ -91,58 +91,6 @@ function _patchTransition(mm) {
   };
 }
 
-function _patchInitializeData(mm) {
-  const origInit = mm._initializeData;
-  mm._initializeData = function(newNode) {
-    const oldStateMap = new Map();
-
-    const walkAndCollect = (node, path) => {
-      if (node && node.state) {
-        oldStateMap.set(path, {
-          state: node.state,
-          content: node.content
-        });
-      }
-      if (node && node.children) {
-        node.children.forEach((child, i) => walkAndCollect(child, `${path}.${i}`));
-      }
-    };
-
-    if (this.state && this.state.data) {
-      walkAndCollect(this.state.data, '0');
-    }
-
-    const resultNode = origInit.call(this, newNode);
-
-    const walkAndRestore = (node, path) => {
-      const oldItem = oldStateMap.get(path);
-      if (oldItem && node && node.state) {
-        const oldState = oldItem.state;
-        const contentChanged = node.content !== oldItem.content;
-        
-        if (oldState.size) {
-          node.state.size = [...oldState.size];
-          if (contentChanged) {
-            node.state.size[0] += 60; // 宽裕的缓冲区，防止增长字符被瞬间裁切
-          }
-        }
-        if (oldState.rect) {
-          node.state.rect = { ...oldState.rect };
-          if (contentChanged) {
-            node.state.rect.width += 60;
-          }
-        }
-      }
-      if (node && node.children) {
-        node.children.forEach((child, i) => walkAndRestore(child, `${path}.${i}`));
-      }
-    };
-
-    walkAndRestore(resultNode, '0');
-    return resultNode;
-  };
-}
-
 function requestMarkmapFit(delay = 0) {
   if (_streamFitTimer) {
     clearTimeout(_streamFitTimer);
@@ -191,7 +139,6 @@ function renderMarkmap(markdown) {
 
   AppState.markmapInstance = Markmap.create(svgEl, MARKMAP_DEFAULT_OPTIONS, root);
   _patchTransition(AppState.markmapInstance);
-  _patchInitializeData(AppState.markmapInstance);
 
   // 设置右键菜单
   _setupContextMenu(AppState.markmapInstance);
