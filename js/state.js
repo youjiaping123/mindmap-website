@@ -20,13 +20,18 @@ const AppState = {
   /** 多版本生成 */
   versionResults: [],      // [{ markdown, root }]  每个版本的结果
   activeVersionIndex: -1,  // 当前激活的版本索引
+  /** 当前导图对应的历史记录 id，修改后据此回写 */
+  currentHistoryId: null,
 };
 
-/** 将 currentMarkdown 回写到当前激活版本，避免切换版本时丢失编辑 */
+/** 将 currentMarkdown 回写到当前激活版本，并同步到历史记录，避免切换版本或刷新时丢失编辑 */
 function syncCurrentMarkdownToActiveVersion() {
   const index = AppState.activeVersionIndex;
   if (!Array.isArray(AppState.versionResults)) return;
   if (index < 0 || index >= AppState.versionResults.length) return;
   if (!AppState.versionResults[index]) return;
   AppState.versionResults[index].markdown = AppState.currentMarkdown;
+  if (typeof persistActiveHistory === 'function') {
+    persistActiveHistory();
+  }
 }

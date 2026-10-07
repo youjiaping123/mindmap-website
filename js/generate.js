@@ -40,6 +40,7 @@ function switchToVersion(index) {
   AppState.activeVersionIndex = index;
   const { markdown } = results[index];
   AppState.currentMarkdown = markdown;
+  persistActiveHistory();
 
   transitionMarkmapToMarkdown(markdown, {
     duration: 600,
@@ -149,6 +150,7 @@ async function handleGenerate() {
 
   // 清空旧内容 & 版本
   clearVersionResults();
+  AppState.currentHistoryId = null;
   AppState.currentMarkdown = '';
   AppState.currentTopic = topic;
   $('markdownContent').textContent = '';
@@ -313,7 +315,7 @@ async function handleGenerate() {
     }
 
     // 保存历史
-    saveHistory(topic, finalMd);
+    saveHistory(topic);
     if (!finishMessage) {
       showToast('思维导图生成成功！', 'success');
     }

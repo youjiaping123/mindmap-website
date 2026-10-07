@@ -12,24 +12,60 @@ function getHistory() {
   }
 }
 
-/** 保存一条历史记录 */
-function saveHistory(topic, markdown) {
+/** 写入 localStorage，空间不足等异常时不打断当前操作 */
+function _writeHistory(history) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch (err) {
+    console.warn('历史记录保存失败:', err);
+  }
+}
+
+/** 从当前状态提取需要持久化的导图内容（含所有版本） */
+function _buildHistoryContent() {
+  const versions = AppState.versionResults.map((v) => v.markdown);
+  const index = AppState.activeVersionIndex;
+  return {
+    markdown: AppState.currentMarkdown,
+    versions,
+    activeVersionIndex: index >= 0 && index < versions.length ? index : 0,
+  };
+}
+
+/** 将当前导图保存为一条新的历史记录 */
+function saveHistory(topic) {
   const history = getHistory();
+  const id = Date.now().toString();
   history.unshift({
-    id: Date.now().toString(),
+    id,
     topic,
-    markdown,
+    ..._buildHistoryContent(),
     time: new Date().toISOString(),
   });
   if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  _writeHistory(history);
+  AppState.currentHistoryId = id;
+  renderHistoryList();
+}
+
+/** 将当前导图的修改回写到对应的历史记录 */
+function persistActiveHistory() {
+  const id = AppState.currentHistoryId;
+  if (!id) return;
+
+  const history = getHistory();
+  const record = history.find((item) => item.id === id);
+  if (!record) return;
+
+  Object.assign(record, _buildHistoryContent());
+  _writeHistory(history);
   renderHistoryList();
 }
 
 /** 删除一条历史记录 */
 function deleteHistory(id) {
   const history = getHistory().filter((item) => item.id !== id);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  _writeHistory(history);
   renderHistoryList();
 }
 
@@ -45,10 +81,21 @@ function loadHistory(id) {
   const record = getHistory().find((item) => item.id === id);
   if (!record) return;
 
-  AppState.currentMarkdown = record.markdown;
+  // 旧记录没有 versions 字段，回退为单版本
+  const versions = Array.isArray(record.versions) && record.versions.length
+    ? record.versions
+    : [record.markdown];
+  const index = Number.isInteger(record.activeVersionIndex)
+    && record.activeVersionIndex >= 0
+    && record.activeVersionIndex < versions.length
+    ? record.activeVersionIndex
+    : 0;
+
+  AppState.currentMarkdown = versions[index];
   AppState.currentTopic = record.topic;
-  AppState.versionResults = [{ markdown: record.markdown }];
-  AppState.activeVersionIndex = 0;
+  AppState.versionResults = versions.map((markdown) => ({ markdown }));
+  AppState.activeVersionIndex = index;
+  AppState.currentHistoryId = record.id;
 
   $('topicInput').value = record.topic;
 
