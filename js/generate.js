@@ -144,6 +144,8 @@ async function handleGenerate() {
   $('chatSection').style.display = 'flex';
   switchTab('preview');
   clearChat();
+  // 生成期间导图仍在变化，暂停对话修改，结束后在 finally 中恢复
+  setChatLoading(true);
 
   const hero = $('heroSection');
   if (hero) hero.style.display = 'none';
@@ -330,5 +332,6 @@ async function handleGenerate() {
     AppState.isStreaming = false;
     AppState.streamAbort = null;
     setLoading(false);
+    setChatLoading(false);
   }
 }

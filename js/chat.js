@@ -164,12 +164,7 @@ async function handleChat() {
         return;
       }
 
-      // 保存撤销快照
-      AppState.markdownUndoStack.push(AppState.currentMarkdown);
-      if (AppState.markdownUndoStack.length > AppState.maxUndoSize) {
-        AppState.markdownUndoStack.shift();
-      }
-      AppState.markdownRedoStack = [];
+      pushMarkdownUndoSnapshot();
 
       const result = applyOperations(AppState.currentMarkdown, operations);
 

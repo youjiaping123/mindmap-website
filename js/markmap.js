@@ -489,6 +489,9 @@ function _setupContextMenu(mm) {
 
 /** 创建并显示右键菜单 */
 function _createContextMenu(event, parsed) {
+  // 生成期间导图内容仍在变化，编辑会被后续结果覆盖
+  if (AppState.isStreaming) return;
+
   const { content, lineStart, nodeData } = parsed;
   // position:fixed 需要 clientX/Y（视口坐标），pageX/Y 会在有滚动时偏移
   const { clientX, clientY } = event;
@@ -570,12 +573,16 @@ function saveNodeEdit() {
   const lines = AppState.currentMarkdown.split('\n');
 
   if (lines[lineIndex] !== undefined) {
+    pushMarkdownUndoSnapshot();
     lines[lineIndex] = prefix + newText;
     AppState.currentMarkdown = lines.join('\n');
   }
 
   if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
     syncCurrentMarkdownToActiveVersion();
+  }
+  if (typeof updateUndoRedoButtons === 'function') {
+    updateUndoRedoButtons();
   }
 
   updateMarkmap(AppState.currentMarkdown);
@@ -595,6 +602,7 @@ function _deleteNode(parsed) {
     return;
   }
 
+  pushMarkdownUndoSnapshot();
   const lines = AppState.currentMarkdown.split('\n');
   // lineEnd 是独占结束行，删除 [lineStart, lineEnd)
   const newLines = lines.filter((_, i) => i < lineStart || i >= lineEnd);
@@ -602,6 +610,9 @@ function _deleteNode(parsed) {
 
   if (typeof syncCurrentMarkdownToActiveVersion === 'function') {
     syncCurrentMarkdownToActiveVersion();
+  }
+  if (typeof updateUndoRedoButtons === 'function') {
+    updateUndoRedoButtons();
   }
 
   updateMarkmap(AppState.currentMarkdown);

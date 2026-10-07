@@ -24,6 +24,15 @@ const AppState = {
   currentHistoryId: null,
 };
 
+/** 修改导图前保存撤销快照，并清空重做栈 */
+function pushMarkdownUndoSnapshot() {
+  AppState.markdownUndoStack.push(AppState.currentMarkdown);
+  if (AppState.markdownUndoStack.length > AppState.maxUndoSize) {
+    AppState.markdownUndoStack.shift();
+  }
+  AppState.markdownRedoStack = [];
+}
+
 /** 将 currentMarkdown 回写到当前激活版本，并同步到历史记录，避免切换版本或刷新时丢失编辑 */
 function syncCurrentMarkdownToActiveVersion() {
   const index = AppState.activeVersionIndex;
