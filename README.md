@@ -264,7 +264,7 @@ vercel --prod
 | `OPENAI_API_KEY` | 是 | 上游模型服务的 API Key |
 | `OPENAI_BASE_URL` | 否 | OpenAI 兼容接口地址，默认 `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | 否 | 默认模型名，默认值为 `claude-sonnet-4-6` |
-| `OPENAI_MODELS` | 否 | 手动指定模型列表，逗号分隔，适合某些不支持模型枚举的兼容服务 |
+| `OPENAI_MODELS` | 否 | 手动指定模型列表，逗号分隔；同时作为服务端白名单，请求只能使用列表内的模型或默认模型 |
 | `OPENAI_MAX_TOKENS` | 否 | 统一设置生成与对话的输出上限 |
 | `OPENAI_GENERATE_MAX_TOKENS` | 否 | 单独设置 `/api/generate` 的输出上限 |
 | `OPENAI_CHAT_MAX_TOKENS` | 否 | 单独设置 `/api/chat` 的输出上限 |
@@ -322,6 +322,8 @@ OPENAI_MODELS=gpt-4o,gpt-4o-mini,deepseek-chat
 - 来源校验（同源 / 允许域名）
 - 限流（按路由、按窗口）
 - 每日配额（内存计数，serverless 多实例下是 best-effort）
+
+来源校验依赖 `Origin` / `Referer` 请求头，只能拦住其他网站的浏览器请求，脚本可以伪造这些请求头。公开部署时建议设置 `OPENAI_MODELS`：设置后 `/api/generate` 和 `/api/chat` 只接受列表内的模型（以及 `OPENAI_MODEL` 默认模型），其他模型直接返回 400，避免他人借你的 Key 调用更贵的模型。未设置时不限制模型名。
 
 可选地，你可以给可信客户端分配 `X-App-Token`，并通过 `API_TRUSTED_MAX_*` 放宽长内容上限。
 

@@ -9,16 +9,14 @@ export default async function handler(req, res) {
   const guard = guardApiRequest(req, res, { routeKey: 'models' });
   if (!guard.ok) return guard.response;
 
-  const { apiKey, baseUrl, defaultModel } = getOpenAIConfig();
+  const { apiKey, baseUrl, defaultModel, allowedModels } = getOpenAIConfig();
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
 
-  // 支持通过环境变量 OPENAI_MODELS 手动指定模型列表（逗号分隔）
-  const envModels = process.env.OPENAI_MODELS;
-  if (envModels) {
-    const models = envModels.split(',').map((m) => m.trim()).filter(Boolean);
-    return res.status(200).json({ success: true, models, default: defaultModel });
+  // 支持通过环境变量 OPENAI_MODELS 手动指定模型列表（逗号分隔），同时作为服务端的模型白名单
+  if (allowedModels.length > 0) {
+    return res.status(200).json({ success: true, models: allowedModels, default: defaultModel });
   }
 
   // 尝试从远程 API 获取

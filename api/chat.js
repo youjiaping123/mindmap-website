@@ -77,6 +77,7 @@ export default async function handler(req, res) {
     apiKey,
     baseUrl,
     defaultModel,
+    allowedModels,
     chatMaxTokens,
   } = config;
   if (!apiKey) {
@@ -103,7 +104,10 @@ export default async function handler(req, res) {
       return errorResponse(res, 400, '消息过长（最多 500 字）');
     }
 
-    const selectedModel = resolveModel(model, defaultModel);
+    const selectedModel = resolveModel(model, defaultModel, allowedModels);
+    if (!selectedModel) {
+      return errorResponse(res, 400, '不支持该模型');
+    }
 
     const messages = [{ role: 'system', content: CHAT_SYSTEM_PROMPT }];
 

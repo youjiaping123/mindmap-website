@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (!guard.ok) return guard.response;
 
   const config = getOpenAIConfig();
-  const { apiKey, baseUrl, defaultModel, generateMaxTokens } = config;
+  const { apiKey, baseUrl, defaultModel, allowedModels, generateMaxTokens } = config;
   if (!apiKey) {
     return errorResponse(res, 500, 'OPENAI_API_KEY is not configured');
   }
@@ -42,7 +42,10 @@ export default async function handler(req, res) {
       return errorResponse(res, 400, `customPrompt is too long (max ${maxCustomPromptLength} chars)`);
     }
 
-    const selectedModel = resolveModel(model, defaultModel);
+    const selectedModel = resolveModel(model, defaultModel, allowedModels);
+    if (!selectedModel) {
+      return errorResponse(res, 400, 'Model is not allowed');
+    }
 
     // 支持前端自定义 temperature（用于多版本生成）
     const defaultTemperature = globalThis.MINDMAP_MODEL_OPTIONS?.defaultGenerateTemperature ?? 0.7;

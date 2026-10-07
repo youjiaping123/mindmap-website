@@ -92,6 +92,11 @@ function normalizeOpenAIBaseUrl(rawBaseUrl) {
   }
 }
 
+function parseModelList(rawValue) {
+  if (!rawValue || typeof rawValue !== 'string') return [];
+  return rawValue.split(',').map((m) => m.trim()).filter(Boolean);
+}
+
 loadLocalEnvFiles();
 
 export function buildOpenAIUrl(baseUrl, endpointPath) {
@@ -102,6 +107,7 @@ export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseUrl = normalizeOpenAIBaseUrl(process.env.OPENAI_BASE_URL);
   const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
+  const allowedModels = parseModelList(process.env.OPENAI_MODELS);
   const sharedMaxTokens = readPositiveIntEnv('OPENAI_MAX_TOKENS');
   const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens;
   const chatMaxTokens = readPositiveIntEnv('OPENAI_CHAT_MAX_TOKENS') ?? sharedMaxTokens;
@@ -119,6 +125,7 @@ export function getOpenAIConfig() {
     apiKey,
     baseUrl,
     defaultModel,
+    allowedModels,
     generateMaxTokens,
     chatMaxTokens,
     maxCustomPromptLength,
@@ -146,10 +153,21 @@ export function getBodySizeLimits(config, isTrustedRequest = false) {
   };
 }
 
-export function resolveModel(userModel, defaultModel) {
-  return (userModel && typeof userModel === 'string' && userModel.trim())
+/**
+ * 解析本次请求使用的模型
+ * 配置了 OPENAI_MODELS 时，只允许列表内的模型和默认模型，防止调用方指定任意模型
+ * @returns {string|null} 模型不被允许时返回 null
+ */
+export function resolveModel(userModel, defaultModel, allowedModels = []) {
+  const requested = (userModel && typeof userModel === 'string' && userModel.trim())
     ? userModel.trim()
-    : defaultModel;
+    : '';
+  if (!requested) return defaultModel;
+
+  if (allowedModels.length > 0 && requested !== defaultModel && !allowedModels.includes(requested)) {
+    return null;
+  }
+  return requested;
 }
 
 export const DEFAULT_SYSTEM_PROMPT = globalThis.MINDMAP_SHARED_PROMPTS?.DEFAULT_SYSTEM_PROMPT || '';
