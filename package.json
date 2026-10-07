@@ -10,9 +10,5 @@
   },
   "engines": {
     "node": "24.x"
-  },
-  "dependencies": {
-    "@sparticuz/chromium": "^143.0.4",
-    "puppeteer-core": "^24.40.0"
   }
 }
