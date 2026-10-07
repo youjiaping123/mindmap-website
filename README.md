@@ -140,7 +140,7 @@
 
 ### 运行平台
 
-- Node.js `>=18`
+- Node.js `24.x`（与 `package.json` 的 `engines` 一致，Vercel 已停止支持 Node 20）
 - Vercel Functions
 - 现代浏览器
 
