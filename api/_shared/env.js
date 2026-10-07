@@ -106,7 +106,7 @@ export function buildOpenAIUrl(baseUrl, endpointPath) {
 export function getOpenAIConfig() {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseUrl = normalizeOpenAIBaseUrl(process.env.OPENAI_BASE_URL);
-  const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-4-6';
+  const defaultModel = process.env.OPENAI_MODEL || 'claude-sonnet-5-5';
   const allowedModels = parseModelList(process.env.OPENAI_MODELS);
   const sharedMaxTokens = readPositiveIntEnv('OPENAI_MAX_TOKENS');
   const generateMaxTokens = readPositiveIntEnv('OPENAI_GENERATE_MAX_TOKENS') ?? sharedMaxTokens;

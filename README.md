@@ -263,7 +263,7 @@ vercel --prod
 | --- | --- | --- |
 | `OPENAI_API_KEY` | 是 | 上游模型服务的 API Key |
 | `OPENAI_BASE_URL` | 否 | OpenAI 兼容接口地址，默认 `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | 否 | 默认模型名，默认值为 `claude-sonnet-4-6` |
+| `OPENAI_MODEL` | 否 | 默认模型名，默认值为 `claude-sonnet-5-5` |
 | `OPENAI_MODELS` | 否 | 手动指定模型列表，逗号分隔；同时作为服务端白名单，请求只能使用列表内的模型或默认模型 |
 | `OPENAI_MAX_TOKENS` | 否 | 统一设置生成与对话的输出上限 |
 | `OPENAI_GENERATE_MAX_TOKENS` | 否 | 单独设置 `/api/generate` 的输出上限 |
